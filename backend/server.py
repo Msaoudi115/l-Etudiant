@@ -18,7 +18,12 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="PasseportEtudiant API")
+app = FastAPI(
+    title="PasseportEtudiant API",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 api_router = APIRouter(prefix="/api")
 
 
@@ -291,6 +296,22 @@ async def get_class_students(code: str):
 
 
 # ------- Students -------
+@api_router.get("/students")
+async def list_students(include_demo: bool = False, limit: int = 50):
+    """List all students (excluding anonymous). Used to populate the Select page."""
+    query = {"is_anonymous": {"$ne": True}}
+    if not include_demo:
+        query["is_demo"] = {"$ne": True}
+    students = (
+        await db.students.find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(limit)
+    )
+    for s in students:
+        s["stamp_count"] = await db.stamps.count_documents({"student_id": s["id"]})
+    return students
+
+
 @api_router.post("/students")
 async def create_student(body: StudentCreate):
     code = body.class_code.upper().strip()
@@ -331,6 +352,19 @@ async def update_student(student_id: str, body: StudentUpdate):
     if res.matched_count == 0:
         raise HTTPException(404, "Student not found")
     return await get_student(student_id)
+
+
+@api_router.delete("/students/{student_id}")
+async def delete_student(student_id: str):
+    """Delete a student and all their stamps (demo profiles are protected)."""
+    student = await db.students.find_one({"id": student_id}, {"_id": 0})
+    if not student:
+        raise HTTPException(404, "Student not found")
+    if student.get("is_demo"):
+        raise HTTPException(403, "Demo profiles can't be deleted")
+    await db.stamps.delete_many({"student_id": student_id})
+    await db.students.delete_one({"id": student_id})
+    return {"ok": True}
 
 
 # ------- Stamps -------

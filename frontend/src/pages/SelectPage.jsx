@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePassport } from "@/context/PassportContext";
 import { TeacherIcon, ChartIcon } from "@/components/icons";
-import { getStudent } from "@/lib/api";
+import { getStudent, listStudents, deleteStudent } from "@/lib/api";
 
 const LOGO_URL = "https://birdeo.com/wp-content/uploads/2024/11/LOGo-letudiant.jpg";
 
@@ -11,17 +11,46 @@ export default function SelectPage() {
   const navigate = useNavigate();
   const { selectStudent, clear } = usePassport();
   const [loading, setLoading] = useState("");
+  const [created, setCreated] = useState([]);
+  const [refreshing, setRefreshing] = useState(true);
 
-  const loadDemo = async (id) => {
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const list = await listStudents(false);
+      setCreated(list);
+    } catch {
+      setCreated([]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const loadProfile = async (id) => {
     setLoading(id);
     try {
       await getStudent(id);
       selectStudent(id);
       navigate("/passport/cover");
     } catch (e) {
-      alert("Profil introuvable. Réessayez.");
+      alert("Profil introuvable.");
     } finally {
       setLoading("");
+    }
+  };
+
+  const removeProfile = async (e, id, name) => {
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer le profil de ${name || "cet élève"} ?`)) return;
+    try {
+      await deleteStudent(id);
+      setCreated((arr) => arr.filter((s) => s.id !== id));
+    } catch {
+      alert("Impossible de supprimer.");
     }
   };
 
@@ -30,7 +59,7 @@ export default function SelectPage() {
     try {
       localStorage.clear();
     } catch {}
-    alert("Session réinitialisée.");
+    refresh();
   };
 
   return (
@@ -121,11 +150,85 @@ export default function SelectPage() {
             </button>
           </div>
 
+          {created.length > 0 && (
+            <>
+              <div className="sel-label" style={{ display: "flex", alignItems: "center" }}>
+                <span>Profils activés ({created.length})</span>
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={refresh}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#aaa",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.1em",
+                    cursor: "pointer",
+                  }}
+                  data-testid="btn-refresh-profiles"
+                >
+                  {refreshing ? "…" : "↻"}
+                </button>
+              </div>
+              <AnimatePresence>
+                {created.map((s) => (
+                  <motion.div
+                    key={s.id}
+                    layout
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.25 }}
+                    className="sel-row"
+                    onClick={() => loadProfile(s.id)}
+                    data-testid={`profile-${s.id}`}
+                  >
+                    <div
+                      className="sr-avatar"
+                      style={{ background: "#fff0f0" }}
+                    >
+                      {s.emoji || "🧑"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="sr-name">{s.name || "Élève"}</div>
+                      <div className="sr-desc">
+                        {s.classe}
+                        {s.filieres?.length > 0 ? ` · ${s.filieres.join(", ")}` : ""}
+                        {typeof s.stamp_count === "number"
+                          ? ` · ${s.stamp_count} tampon${s.stamp_count > 1 ? "s" : ""}`
+                          : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => removeProfile(e, s.id, s.name)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ddd",
+                        fontSize: 18,
+                        cursor: "pointer",
+                        padding: "4px 8px",
+                      }}
+                      title="Supprimer ce profil"
+                      data-testid={`btn-delete-${s.id}`}
+                    >
+                      ×
+                    </button>
+                    <span style={{ color: "#ddd", fontSize: 20 }}>
+                      {loading === s.id ? "…" : "›"}
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </>
+          )}
+
           <div className="sel-label">Profils de démonstration</div>
 
           <div
             className="sel-row"
-            onClick={() => loadDemo("demo-lucas")}
+            onClick={() => loadProfile("demo-lucas")}
             data-testid="demo-lucas"
           >
             <div className="sr-avatar" style={{ background: "#fff0f0" }}>
@@ -144,7 +247,7 @@ export default function SelectPage() {
 
           <div
             className="sel-row"
-            onClick={() => loadDemo("demo-theo")}
+            onClick={() => loadProfile("demo-theo")}
             data-testid="demo-theo"
           >
             <div className="sr-avatar" style={{ background: "#f5f5f5" }}>

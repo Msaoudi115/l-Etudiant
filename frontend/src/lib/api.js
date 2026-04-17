@@ -11,10 +11,14 @@ export const getSchool = (id) => api.get(`/schools/${id}`).then((r) => r.data);
 
 export const createStudent = (payload) =>
   api.post("/students", payload).then((r) => r.data);
+export const listStudents = (includeDemo = false) =>
+  api.get(`/students?include_demo=${includeDemo}`).then((r) => r.data);
 export const getStudent = (id) =>
   api.get(`/students/${id}`).then((r) => r.data);
 export const updateStudent = (id, payload) =>
   api.patch(`/students/${id}`, payload).then((r) => r.data);
+export const deleteStudent = (id) =>
+  api.delete(`/students/${id}`).then((r) => r.data);
 export const getStamps = (id) =>
   api.get(`/students/${id}/stamps`).then((r) => r.data);
 export const createStamp = (payload) =>
