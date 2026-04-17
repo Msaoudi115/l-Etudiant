@@ -550,6 +550,59 @@ async def analytics_overview():
     }
 
 
+@api_router.delete("/classes/{code}")
+async def delete_class(code: str, cascade: bool = False):
+    """Delete a class. If cascade=true, also deletes its students and stamps.
+    Demo class PROF2026 is protected."""
+    code_u = code.upper()
+    if code_u == "PROF2026":
+        raise HTTPException(403, "Demo class PROF2026 is protected")
+    c = await db.classes.find_one({"code": code_u})
+    if not c:
+        raise HTTPException(404, "Class not found")
+    deleted_students = 0
+    deleted_stamps = 0
+    if cascade:
+        student_ids = [
+            s["id"]
+            async for s in db.students.find({"class_code": code_u}, {"id": 1, "_id": 0})
+        ]
+        if student_ids:
+            sres = await db.stamps.delete_many({"student_id": {"$in": student_ids}})
+            deleted_stamps = sres.deleted_count
+            stres = await db.students.delete_many({"class_code": code_u})
+            deleted_students = stres.deleted_count
+    await db.classes.delete_one({"code": code_u})
+    return {
+        "ok": True,
+        "deleted_class": code_u,
+        "deleted_students": deleted_students,
+        "deleted_stamps": deleted_stamps,
+    }
+
+
+@api_router.post("/admin/reset")
+async def admin_reset(keep_demo: bool = True):
+    """DANGER: Wipe all non-demo data. Keeps Lucas, Théo and PROF2026 by default."""
+    student_filter = {"is_demo": {"$ne": True}} if keep_demo else {}
+    students_deleted = await db.students.delete_many(student_filter)
+    if keep_demo:
+        stamps_deleted = await db.stamps.delete_many(
+            {"student_id": {"$nin": ["demo-lucas", "demo-theo"]}}
+        )
+        classes_deleted = await db.classes.delete_many({"code": {"$ne": "PROF2026"}})
+    else:
+        stamps_deleted = await db.stamps.delete_many({})
+        classes_deleted = await db.classes.delete_many({})
+    return {
+        "ok": True,
+        "keep_demo": keep_demo,
+        "students_deleted": students_deleted.deleted_count,
+        "stamps_deleted": stamps_deleted.deleted_count,
+        "classes_deleted": classes_deleted.deleted_count,
+    }
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
