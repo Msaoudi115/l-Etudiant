@@ -34,6 +34,27 @@ export const getClass = (code) =>
   api.get(`/classes/${code}`).then((r) => r.data);
 export const getClassStudents = (code) =>
   api.get(`/classes/${code}/students`).then((r) => r.data);
+export const deleteClass = (code, cascade = false) =>
+  api.delete(`/classes/${code}?cascade=${cascade}`).then((r) => r.data);
+export const getLeaderboard = () =>
+  api.get("/leaderboard").then((r) => r.data);
 
 export const getAnalytics = () =>
   api.get("/analytics/overview").then((r) => r.data);
+export const getLeads = (filters = {}) => {
+  const q = new URLSearchParams(filters).toString();
+  return api.get(`/analytics/leads?${q}`).then((r) => r.data);
+};
+export const leadsCsvUrl = (filters = {}) => {
+  const q = new URLSearchParams(filters).toString();
+  return `${API}/analytics/leads.csv?${q}`;
+};
+
+export const adminStats = () =>
+  api.get("/admin/stats").then((r) => r.data);
+export const adminAllStudents = () =>
+  api.get("/admin/all-students").then((r) => r.data);
+export const adminAllClasses = () =>
+  api.get("/admin/all-classes").then((r) => r.data);
+export const adminReset = (keepDemo = true) =>
+  api.post(`/admin/reset?keep_demo=${keepDemo}`).then((r) => r.data);

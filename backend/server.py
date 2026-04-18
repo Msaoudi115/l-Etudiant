@@ -1,8 +1,11 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import io
+import csv
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
@@ -43,7 +46,7 @@ class School(BaseModel):
 
 
 class Consents(BaseModel):
-    l: bool = False  # Contenus personnalisés l'Étudiant
+    l: bool = False  # Contenus personnalisés l'Étudiant  # noqa: E741
     d: bool = False  # Diplomeo
     c: bool = False  # Partenaires
     e: bool = False  # Enquêtes
@@ -212,6 +215,90 @@ async def seed_database():
             "created_at": now_iso(),
         }
         await db.students.insert_one(theo)
+
+    # Second demo class for leaderboard
+    if await db.classes.count_documents({"code": "PROF2026B"}) == 0:
+        await db.classes.insert_one({
+            "id": str(uuid.uuid4()),
+            "code": "PROF2026B",
+            "teacher_name": "Mme Durand",
+            "school_name": "Lycée Louis-le-Grand · Terminale S1",
+            "created_at": now_iso(),
+        })
+
+    # Rich seed students (for vivid analytics + leaderboard on first launch)
+    fixtures = [
+        # class PROF2026 (Henri-IV)
+        {"id": "demo-emma", "name": "Emma Lefebvre", "emoji": "🧑‍🎓", "classe": "Terminale générale",
+         "filieres": ["Commerce", "Droit"], "formation": ["Grande École", "IEP"],
+         "consents": {"l": True, "d": True, "c": False, "e": True},
+         "class_code": "PROF2026",
+         "stamps": ["s6", "s7", "s8", "c2"]},
+        {"id": "demo-nadia", "name": "Nadia Rahmani", "emoji": "👩‍🎓", "classe": "Terminale générale",
+         "filieres": ["Santé", "Sciences Po"], "formation": ["Université", "IEP"],
+         "consents": {"l": True, "d": True, "c": True, "e": False},
+         "class_code": "PROF2026",
+         "stamps": ["s11", "c2", "c4"]},
+        {"id": "demo-hugo", "name": "Hugo Lambert", "emoji": "👨‍🎓", "classe": "Terminale générale",
+         "filieres": ["Ingénierie", "Numérique"], "formation": ["École d'ingénieurs", "Prépa CPGE"],
+         "consents": {"l": True, "d": False, "c": False, "e": False},
+         "class_code": "PROF2026",
+         "stamps": ["s1", "s2"]},
+        # class PROF2026B (Louis-le-Grand)
+        {"id": "demo-sarah", "name": "Sarah Mercier", "emoji": "👩", "classe": "Terminale générale",
+         "filieres": ["Ingénierie", "Numérique"], "formation": ["École d'ingénieurs", "Prépa CPGE"],
+         "consents": {"l": True, "d": True, "c": True, "e": True},
+         "class_code": "PROF2026B",
+         "stamps": ["s1", "s2", "s3", "s4", "s10", "c1", "c2"]},
+        {"id": "demo-malik", "name": "Malik Benali", "emoji": "😎", "classe": "Terminale générale",
+         "filieres": ["Commerce"], "formation": ["Grande École"],
+         "consents": {"l": True, "d": True, "c": True, "e": False},
+         "class_code": "PROF2026B",
+         "stamps": ["s6", "s7", "s8", "s9", "c3"]},
+        {"id": "demo-lea", "name": "Léa Dupont", "emoji": "🤓", "classe": "Terminale générale",
+         "filieres": ["Arts"], "formation": ["Université"],
+         "consents": {"l": True, "d": False, "c": False, "e": False},
+         "class_code": "PROF2026B",
+         "stamps": ["s12"]},
+    ]
+
+    for f in fixtures:
+        if await db.students.count_documents({"id": f["id"]}) > 0:
+            continue
+        student_doc = {
+            "id": f["id"],
+            "serial": f"SAL-2026-{secrets.randbelow(90000) + 10000}",
+            "name": f["name"],
+            "emoji": f["emoji"],
+            "classe": f["classe"],
+            "filieres": f["filieres"],
+            "formation": f["formation"],
+            "nat": "FRANÇAISE",
+            "dob_short": "—",
+            "sex": "—",
+            "lieu": "—",
+            "expire": "15/04/2031",
+            "consents": f["consents"],
+            "class_code": f["class_code"],
+            "is_demo": True,
+            "is_anonymous": False,
+            "created_at": now_iso(),
+        }
+        await db.students.insert_one(student_doc)
+        # seed stamps
+        for sid in f["stamps"]:
+            sc = await db.schools.find_one({"id": sid}, {"_id": 0})
+            if not sc:
+                continue
+            await db.stamps.insert_one({
+                "id": str(uuid.uuid4()),
+                "student_id": f["id"],
+                "school_id": sc["id"],
+                "hall_id": sc["hall_id"],
+                "school_name": sc["name"],
+                "time_label": f"{14 + secrets.randbelow(4)}h{str(secrets.randbelow(60)).zfill(2)}",
+                "timestamp": now_iso(),
+            })
 
 
 # ============== HELPERS ==============
@@ -553,10 +640,10 @@ async def analytics_overview():
 @api_router.delete("/classes/{code}")
 async def delete_class(code: str, cascade: bool = False):
     """Delete a class. If cascade=true, also deletes its students and stamps.
-    Demo class PROF2026 is protected."""
+    Demo classes PROF2026 and PROF2026B are protected."""
     code_u = code.upper()
-    if code_u == "PROF2026":
-        raise HTTPException(403, "Demo class PROF2026 is protected")
+    if code_u in ("PROF2026", "PROF2026B"):
+        raise HTTPException(403, f"Demo class {code_u} is protected")
     c = await db.classes.find_one({"code": code_u})
     if not c:
         raise HTTPException(404, "Class not found")
@@ -583,14 +670,16 @@ async def delete_class(code: str, cascade: bool = False):
 
 @api_router.post("/admin/reset")
 async def admin_reset(keep_demo: bool = True):
-    """DANGER: Wipe all non-demo data. Keeps Lucas, Théo and PROF2026 by default."""
+    """DANGER: Wipe all non-demo data. Keeps demo students and PROF2026/PROF2026B by default."""
     student_filter = {"is_demo": {"$ne": True}} if keep_demo else {}
     students_deleted = await db.students.delete_many(student_filter)
     if keep_demo:
+        # Keep stamps for all demo students
+        demo_student_ids = ["demo-lucas", "demo-theo", "demo-emma", "demo-nadia", "demo-hugo", "demo-sarah", "demo-malik", "demo-lea"]
         stamps_deleted = await db.stamps.delete_many(
-            {"student_id": {"$nin": ["demo-lucas", "demo-theo"]}}
+            {"student_id": {"$nin": demo_student_ids}}
         )
-        classes_deleted = await db.classes.delete_many({"code": {"$ne": "PROF2026"}})
+        classes_deleted = await db.classes.delete_many({"code": {"$nin": ["PROF2026", "PROF2026B"]}})
     else:
         stamps_deleted = await db.stamps.delete_many({})
         classes_deleted = await db.classes.delete_many({})
@@ -604,6 +693,160 @@ async def admin_reset(keep_demo: bool = True):
 
 
 # Include the router in the main app
+
+
+# ------- Leaderboard -------
+@api_router.get("/leaderboard")
+async def classes_leaderboard():
+    """Ranked list of classes by avg stamps/student. Returns up to 20."""
+    classes = await db.classes.find({}, {"_id": 0}).to_list(200)
+    rows = []
+    for c in classes:
+        students = await db.students.find(
+            {"class_code": c["code"], "is_anonymous": {"$ne": True}},
+            {"id": 1, "_id": 0},
+        ).to_list(500)
+        total_stamps = 0
+        for s in students:
+            total_stamps += await db.stamps.count_documents({"student_id": s["id"]})
+        n = len(students)
+        rows.append({
+            "code": c["code"],
+            "school_name": c["school_name"],
+            "teacher_name": c["teacher_name"],
+            "students": n,
+            "stamps": total_stamps,
+            "avg": round(total_stamps / n, 2) if n else 0.0,
+        })
+    rows.sort(key=lambda r: (-r["avg"], -r["stamps"], -r["students"]))
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return rows[:20]
+
+
+# ------- Leads qualifiés -------
+def _passes_lead_filter(student, filiere, consent, min_stamps, stamp_count):
+    if filiere and filiere != "all":
+        if filiere not in (student.get("filieres") or []):
+            return False
+    if consent and consent != "all":
+        if not student.get("consents", {}).get(consent):
+            return False
+    if stamp_count < min_stamps:
+        return False
+    return True
+
+
+@api_router.get("/analytics/leads")
+async def leads(
+    filiere: Optional[str] = "all",
+    consent: Optional[str] = "all",
+    min_stamps: int = 0,
+    limit: int = 200,
+):
+    students = await db.students.find(
+        {"is_anonymous": {"$ne": True}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    rows = []
+    for s in students:
+        stamp_count = await db.stamps.count_documents({"student_id": s["id"]})
+        if not _passes_lead_filter(s, filiere, consent, min_stamps, stamp_count):
+            continue
+        consents = s.get("consents") or {}
+        score = compute_score(
+            stamp_count,
+            sum(1 for v in consents.values() if v),
+            len(s.get("filieres") or []),
+        )
+        rows.append({
+            "id": s["id"],
+            "name": s["name"],
+            "serial": s["serial"],
+            "classe": s["classe"],
+            "filieres": s.get("filieres") or [],
+            "formation": s.get("formation") or [],
+            "class_code": s.get("class_code"),
+            "consents": consents,
+            "stamp_count": stamp_count,
+            "score": score,
+            "is_demo": s.get("is_demo", False),
+        })
+    rows.sort(key=lambda r: (-r["score"], -r["stamp_count"]))
+    return rows[:limit]
+
+
+@api_router.get("/analytics/leads.csv")
+async def leads_csv(
+    filiere: Optional[str] = "all",
+    consent: Optional[str] = "all",
+    min_stamps: int = 0,
+):
+    rows = await leads(filiere=filiere, consent=consent, min_stamps=min_stamps, limit=10000)
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "Nom", "Serial", "Classe", "Filières", "Formation", "Code classe",
+        "Tampons", "Score",
+        "Consent_lEtudiant", "Consent_Diplomeo", "Consent_Partenaires", "Consent_Enquetes",
+    ])
+    for r in rows:
+        c = r.get("consents") or {}
+        writer.writerow([
+            r["name"], r["serial"], r["classe"],
+            ", ".join(r["filieres"]),
+            ", ".join(r["formation"]),
+            r.get("class_code") or "",
+            r["stamp_count"], r["score"],
+            "oui" if c.get("l") else "non",
+            "oui" if c.get("d") else "non",
+            "oui" if c.get("c") else "non",
+            "oui" if c.get("e") else "non",
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="leads_passeport_etudiant.csv"'
+        },
+    )
+
+
+# ------- Admin -------
+@api_router.get("/admin/stats")
+async def admin_stats():
+    return {
+        "students": {
+            "total": await db.students.count_documents({}),
+            "real": await db.students.count_documents(
+                {"is_demo": {"$ne": True}, "is_anonymous": {"$ne": True}}
+            ),
+            "demo": await db.students.count_documents({"is_demo": True}),
+            "anonymous": await db.students.count_documents({"is_anonymous": True}),
+        },
+        "stamps": await db.stamps.count_documents({}),
+        "classes": await db.classes.count_documents({}),
+        "schools": await db.schools.count_documents({}),
+    }
+
+
+@api_router.get("/admin/all-students")
+async def admin_all_students():
+    students = await db.students.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for s in students:
+        s["stamp_count"] = await db.stamps.count_documents({"student_id": s["id"]})
+    return students
+
+
+@api_router.get("/admin/all-classes")
+async def admin_all_classes():
+    classes = await db.classes.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for c in classes:
+        c["student_count"] = await db.students.count_documents({"class_code": c["code"]})
+    return classes
+
+
+
 app.include_router(api_router)
 
 app.add_middleware(

@@ -274,6 +274,14 @@ export default function SelectPage() {
               >
                 Réinitialiser la session
               </button>
+              <button
+                className="reset-btn"
+                onClick={() => navigate("/admin")}
+                style={{ marginLeft: 6 }}
+                data-testid="btn-admin"
+              >
+                🔐 Admin
+              </button>
             </div>
           </div>
         </div>

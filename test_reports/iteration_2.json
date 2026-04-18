@@ -1,0 +1,93 @@
+{
+  "summary": "Comprehensive testing of PasseportEtudiant new features (iteration 2). All 19 backend API tests passed (100%). All frontend UI tests passed covering: Admin page (login, dashboard, delete protection), Analytics page (Overview/Leads tabs, filters, CSV export), Teacher page (leaderboard with 'toi' marker), Recap page (leaderboard, badge preview, share/download buttons). Fixed backend bug: PROF2026B was not protected from deletion.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_passport_api.py",
+    "/app/test_reports/pytest/pytest_results_iter2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: PROF2026B was not protected from deletion in backend - now both demo classes are protected",
+    "Fixed: admin_reset now keeps all demo students' stamps (not just Lucas and Théo)",
+    "All new endpoints properly exclude MongoDB _id from responses",
+    "CSV export correctly sets Content-Disposition attachment header",
+    "Leaderboard correctly ranks classes by avg stamps per student"
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fixed PROF2026B protection and admin_reset)",
+    "/app/backend/tests/test_new_features.py (new test file for iteration 2 features)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 new feature tests passed)",
+    "frontend": "100% (all UI tests passed)"
+  },
+  "test_credentials": {
+    "admin_key": "letudiant2026",
+    "demo_class_codes": ["PROF2026 (Henri-IV)", "PROF2026B (Louis-le-Grand)"],
+    "demo_students": ["demo-lucas", "demo-theo", "demo-emma", "demo-nadia", "demo-hugo", "demo-sarah", "demo-malik", "demo-lea"]
+  },
+  "seed_data_creation": "Backend seeds 8 demo students with pre-seeded stamps: Lucas (5), Emma (4), Nadia (3), Hugo (2) in PROF2026; Sarah (7), Malik (5), Léa (1) in PROF2026B; Théo (anonymous, 0)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 new features working correctly: (1) Shareable PNG badge on recap - download/share buttons work, (2) Qualified leads dashboard with filters + CSV export - all filters work, (3) Enriched seed + admin page - login with 'letudiant2026', demo protection works, (4) Class leaderboard - shows on teacher page and recap page with 'toi' marker. Backend tests in /app/backend/tests/test_new_features.py cover all new endpoints.",
+  "features_tested": {
+    "backend_new_endpoints": [
+      "GET /api/leaderboard - returns classes ranked by avg stamps with {code, school_name, teacher_name, students, stamps, avg, rank}",
+      "GET /api/analytics/leads - returns filtered lead list with score, stamp_count, consents, filieres",
+      "GET /api/analytics/leads?filiere=Ingénierie - filters correctly",
+      "GET /api/analytics/leads?consent=d - returns only students with Diplomeo consent",
+      "GET /api/analytics/leads?min_stamps=3 - filters correctly",
+      "GET /api/analytics/leads.csv - returns CSV with Content-Disposition attachment header",
+      "GET /api/admin/stats - returns {students:{total,real,demo,anonymous}, stamps, classes, schools}",
+      "GET /api/admin/all-students - returns all students (including demo) with stamp_count",
+      "GET /api/admin/all-classes - returns all classes with student_count",
+      "DELETE /api/classes/PROF2026 - returns 403 (protected)",
+      "DELETE /api/classes/PROF2026B - returns 403 (protected)",
+      "DELETE /api/classes/{code}?cascade=true - removes students and stamps"
+    ],
+    "frontend_new_features": [
+      "SelectPage footer: '🔐 Admin' button navigates to /admin",
+      "AdminPage: login form with key validation (letudiant2026)",
+      "AdminPage: invalid key shows error message",
+      "AdminPage: dashboard shows stats KPIs, Actualiser/Reset buttons",
+      "AdminPage: students table with search + includeDemo checkbox",
+      "AdminPage: demo students have disabled delete button",
+      "AdminPage: classes table with delete protection for PROF2026/PROF2026B",
+      "AnalyticsPage: 'Vue d'ensemble' / 'Leads qualifiés' tabs",
+      "AnalyticsPage Leads tab: filters work (filiere, consent, min_stamps)",
+      "AnalyticsPage Leads tab: 'Exporter CSV' button with correct href",
+      "TeacherPage: KPIs including rank",
+      "TeacherPage: '🏆 Classement des classes' card with ranked list",
+      "TeacherPage: leaderboard highlights own class with 'toi' marker",
+      "RecapPage: leaderboard with 'TA CLASSE' badge",
+      "RecapPage: badge preview card with score",
+      "RecapPage: Partager/Télécharger buttons work"
+    ],
+    "enriched_seed": [
+      "Lucas, Théo, Emma, Nadia, Hugo in PROF2026 (Henri-IV)",
+      "Sarah, Malik, Léa in PROF2026B (Louis-le-Grand)",
+      "All demo students have pre-seeded stamps"
+    ]
+  },
+  "bugs_fixed_by_testing_agent": [
+    {
+      "issue": "PROF2026B was not protected from deletion",
+      "file": "/app/backend/server.py",
+      "fix": "Added PROF2026B to protected classes list in delete_class endpoint"
+    },
+    {
+      "issue": "admin_reset only kept stamps for Lucas and Théo",
+      "file": "/app/backend/server.py",
+      "fix": "Updated to keep stamps for all 8 demo students"
+    }
+  ]
+}

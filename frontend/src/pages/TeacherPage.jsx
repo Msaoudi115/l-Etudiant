@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { createClass, getClass, getClassStudents } from "@/lib/api";
+import { createClass, getClassStudents, getLeaderboard } from "@/lib/api";
 
 const LOGO_URL = "https://birdeo.com/wp-content/uploads/2024/11/LOGo-letudiant.jpg";
 
@@ -162,9 +162,15 @@ export default function TeacherPage() {
 }
 
 function ClassDashboard({ classInfo, students, loading, onRefresh }) {
+  const [leaderboard, setLeaderboard] = React.useState([]);
+  React.useEffect(() => {
+    getLeaderboard().then(setLeaderboard).catch(() => setLeaderboard([]));
+  }, [students]);
+
   const total = students.length;
   const withStamps = students.filter((s) => (s.stamp_count || 0) > 0).length;
   const avg = total > 0 ? (students.reduce((a, s) => a + (s.stamp_count || 0), 0) / total).toFixed(1) : "0";
+  const myRank = leaderboard.find((r) => r.code === classInfo.code);
 
   return (
     <>
@@ -195,8 +201,61 @@ function ClassDashboard({ classInfo, students, loading, onRefresh }) {
         <div className="kpi"><div className="kpi-label">Élèves inscrits</div><div className="kpi-val" data-testid="kpi-students">{total}</div></div>
         <div className="kpi red"><div className="kpi-label">Ont déjà tamponné</div><div className="kpi-val">{withStamps}</div><div className="kpi-hint">{total > 0 ? Math.round((withStamps / total) * 100) : 0}% de la classe</div></div>
         <div className="kpi navy"><div className="kpi-label">Tampons / élève</div><div className="kpi-val">{avg}</div><div className="kpi-hint">moyenne</div></div>
-        <div className="kpi"><div className="kpi-label">Total tampons</div><div className="kpi-val">{students.reduce((a, s) => a + (s.stamp_count || 0), 0)}</div></div>
+        <div className="kpi"><div className="kpi-label">Rang salon</div><div className="kpi-val" data-testid="kpi-rank">#{myRank?.rank ?? "—"}</div><div className="kpi-hint">sur {leaderboard.length} classes</div></div>
       </div>
+
+      {leaderboard.length > 1 && (
+        <div className="desk-card" style={{ marginBottom: 16 }}>
+          <div className="desk-h1" style={{ fontSize: 18, marginBottom: 4 }}>🏆 Classement des classes</div>
+          <div className="desk-sub" style={{ marginBottom: 12 }}>
+            Moyenne de tampons par élève — mis à jour en direct
+          </div>
+          {leaderboard.slice(0, 8).map((row) => {
+            const mine = row.code === classInfo.code;
+            const color = row.rank === 1 ? "#d97706" : row.rank === 2 ? "#6b7280" : row.rank === 3 ? "#b45309" : "#ccc";
+            return (
+              <div
+                key={row.code}
+                className="stu-row"
+                style={{
+                  background: mine ? "#fff8f8" : "transparent",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  borderBottom: "1px solid #f5f5f5",
+                }}
+                data-testid={`leaderboard-row-${row.code}`}
+              >
+                <div
+                  className="stu-av"
+                  style={{
+                    background: row.rank <= 3 ? color : "#f5f5f5",
+                    color: row.rank <= 3 ? "white" : "#999",
+                    fontWeight: 900,
+                    fontSize: 16,
+                  }}
+                >
+                  #{row.rank}
+                </div>
+                <div>
+                  <div className="stu-name">
+                    {row.school_name}
+                    {mine ? <span style={{ color: "var(--red)", marginLeft: 6 }}>· toi</span> : null}
+                  </div>
+                  <div className="stu-meta">
+                    {row.teacher_name} · {row.students} élève{row.students > 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div>
+                  <span className={`badge ${mine ? "red" : "ghost"}`}>{row.avg} / élève</span>
+                </div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {row.stamps} tampons
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="desk-card">
         <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
