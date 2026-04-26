@@ -19,6 +19,9 @@ export const updateStudent = (id, payload) =>
   api.patch(`/students/${id}`, payload).then((r) => r.data);
 export const deleteStudent = (id) =>
   api.delete(`/students/${id}`).then((r) => r.data);
+export const getRgpd = (id) =>
+  api.get(`/students/${id}/rgpd`).then((r) => r.data);
+export const rgpdExportUrl = (id) => `${API}/students/${id}/rgpd/export`;
 export const getStamps = (id) =>
   api.get(`/students/${id}/stamps`).then((r) => r.data);
 export const createStamp = (payload) =>

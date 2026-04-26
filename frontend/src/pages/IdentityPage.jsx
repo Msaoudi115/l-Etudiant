@@ -306,6 +306,30 @@ export default function IdentityPage() {
                   );
                 })}
               </div>
+              {!isAnon && (
+                <button
+                  onClick={() => navigate("/rgpd")}
+                  style={{
+                    width: "100%",
+                    background: "var(--cream2)",
+                    border: "none",
+                    borderTop: "1px solid var(--cream3)",
+                    padding: "12px 14px",
+                    fontFamily: "var(--font)",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  data-testid="btn-go-rgpd"
+                >
+                  <span>🔐 Mon RGPD — finalités, audit, export, effacement</span>
+                  <span style={{ color: "#999" }}>›</span>
+                </button>
+              )}
             </motion.div>
 
             {isAnon && (

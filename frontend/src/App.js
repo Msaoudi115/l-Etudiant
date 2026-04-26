@@ -11,6 +11,7 @@ import TeacherPage from "@/pages/TeacherPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import StandPage from "@/pages/StandPage";
 import AdminPage from "@/pages/AdminPage";
+import RgpdPage from "@/pages/RgpdPage";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/teacher/:code" element={<TeacherPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/rgpd" element={<RgpdPage />} />
           <Route path="/stand/:schoolId" element={<StandPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

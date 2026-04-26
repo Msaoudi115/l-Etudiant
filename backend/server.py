@@ -430,26 +430,84 @@ async def get_student(student_id: str):
 
 @api_router.patch("/students/{student_id}")
 async def update_student(student_id: str, body: StudentUpdate):
+    current = await db.students.find_one({"id": student_id}, {"_id": 0})
+    if not current:
+        raise HTTPException(404, "Student not found")
     update = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     if "consents" in update and update["consents"] is not None:
         update["consents"] = dict(update["consents"])
+        # Audit trail: log every consent change
+        old_c = current.get("consents") or {}
+        new_c = update["consents"]
+        for key in ("l", "d", "c", "e"):
+            if old_c.get(key) != new_c.get(key):
+                await db.consent_audit.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "student_id": student_id,
+                    "consent_key": key,
+                    "from": bool(old_c.get(key)),
+                    "to": bool(new_c.get(key)),
+                    "timestamp": now_iso(),
+                })
     if not update:
         return await get_student(student_id)
-    res = await db.students.update_one({"id": student_id}, {"$set": update})
-    if res.matched_count == 0:
-        raise HTTPException(404, "Student not found")
+    await db.students.update_one({"id": student_id}, {"$set": update})
     return await get_student(student_id)
+
+
+# ------- RGPD -------
+@api_router.get("/students/{student_id}/rgpd")
+async def rgpd_view(student_id: str):
+    """Returns everything stored about a student + audit trail. Right to access."""
+    student = await db.students.find_one({"id": student_id}, {"_id": 0})
+    if not student:
+        raise HTTPException(404, "Student not found")
+    stamps = await db.stamps.find({"student_id": student_id}, {"_id": 0}).to_list(500)
+    audit = (
+        await db.consent_audit.find({"student_id": student_id}, {"_id": 0})
+        .sort("timestamp", -1)
+        .to_list(500)
+    )
+    return {
+        "student": student,
+        "stamps": stamps,
+        "consent_audit": audit,
+        "rights": {
+            "access": "Right to access your data — this endpoint",
+            "portability": f"GET /api/students/{student_id}/rgpd?export=json",
+            "rectification": f"PATCH /api/students/{student_id}",
+            "erasure": f"DELETE /api/students/{student_id}",
+        },
+    }
+
+
+@api_router.get("/students/{student_id}/rgpd/export")
+async def rgpd_export(student_id: str):
+    """Right to data portability — downloadable JSON."""
+    data = await rgpd_view(student_id)
+    payload = io.StringIO()
+    import json as _json
+    _json.dump(data, payload, ensure_ascii=False, indent=2, default=str)
+    payload.seek(0)
+    return StreamingResponse(
+        iter([payload.getvalue()]),
+        media_type="application/json; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="rgpd_export_{student_id}.json"'
+        },
+    )
 
 
 @api_router.delete("/students/{student_id}")
 async def delete_student(student_id: str):
-    """Delete a student and all their stamps (demo profiles are protected)."""
+    """Right to erasure (RGPD Art. 17). Demo profiles protected."""
     student = await db.students.find_one({"id": student_id}, {"_id": 0})
     if not student:
         raise HTTPException(404, "Student not found")
     if student.get("is_demo"):
         raise HTTPException(403, "Demo profiles can't be deleted")
     await db.stamps.delete_many({"student_id": student_id})
+    await db.consent_audit.delete_many({"student_id": student_id})
     await db.students.delete_one({"id": student_id})
     return {"ok": True}
 
