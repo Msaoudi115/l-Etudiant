@@ -266,15 +266,7 @@ export default function RecapPage() {
                   <br />
                   Diplomeo : {student.consents?.d ? "Actif" : "Inactif"}
                   <br />
-                  Lead score : <strong>{score} / 100</strong>
-                  {recap?.lead_value_eur > 0 && (
-                    <>
-                      {" · "}
-                      <strong style={{ color: "var(--red)" }}>
-                        Valeur lead : {recap.lead_value_eur} €
-                      </strong>
-                    </>
-                  )}
+                  Score : <strong>{score} / 100</strong>
                 </div>
               </div>
 
@@ -282,22 +274,6 @@ export default function RecapPage() {
                 <div>
                   <div className="rsec">
                     Décomposition du score
-                    {recap.temperature && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          background: recap.temperature.color,
-                          color: "white",
-                          padding: "2px 9px",
-                          borderRadius: 99,
-                          fontSize: 10,
-                          letterSpacing: "0.05em",
-                          fontWeight: 800,
-                        }}
-                      >
-                        {recap.temperature.label}
-                      </span>
-                    )}
                   </div>
                   <ScoreBreakdown breakdown={recap.score_breakdown} />
                 </div>

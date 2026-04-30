@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePassport } from "@/context/PassportContext";
@@ -6,7 +6,23 @@ import BottomNav from "@/components/BottomNav";
 import QRScanner from "@/components/QRScanner";
 import Toast from "@/components/Toast";
 import { BackIcon, ScanIcon } from "@/components/icons";
-import { getHalls, getSchools, createStamp, deleteStamp, getRecap } from "@/lib/api";
+import { getHalls, getSchools, createStamp, deleteStamp, getRecap, getLeaderboard } from "@/lib/api";
+
+const FILIERE_TO_HALL = {
+  "Ingénierie": "i",
+  "Numérique": "i",
+  "Commerce": "c",
+  "Sciences Po": "s",
+  "Santé": "s",
+  "Arts": "a",
+  "Droit": "s",
+};
+
+const BADGE_THRESHOLDS = [
+  { stamps: 1, icon: "👣", label: "Premier pas" },
+  { stamps: 5, icon: "🏃", label: "Marathonien" },
+  { stamps: 10, icon: "🏆", label: "Complétiste" },
+];
 
 export default function StampsPage() {
   const navigate = useNavigate();
@@ -19,6 +35,10 @@ export default function StampsPage() {
   const [toast, setToast] = useState({ msg: "", type: "ok" });
   const [score, setScore] = useState(0);
   const [scorePulse, setScorePulse] = useState(false);
+  const [classRank, setClassRank] = useState(null);
+  const [showRecapCelebration, setShowRecapCelebration] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const prevDoneCountRef = useRef(0);
 
   useEffect(() => {
     Promise.all([getHalls(), getSchools()]).then(([h, s]) => {
@@ -26,6 +46,27 @@ export default function StampsPage() {
       setSchools(s);
     });
   }, []);
+
+  // Load class rank for mini-leaderboard
+  useEffect(() => {
+    if (!student || student.is_anonymous || !student.class_code) return;
+    getLeaderboard()
+      .then((lb) => {
+        const entry = lb.find((r) => r.code === student.class_code);
+        if (entry) setClassRank(entry.rank);
+      })
+      .catch(() => {});
+  }, [student]);
+
+  // Show onboarding hint on very first visit
+  useEffect(() => {
+    if (!student || student.is_anonymous) return;
+    const key = `stamps_onboarding_${student.id}`;
+    if (!localStorage.getItem(key)) {
+      setShowOnboarding(true);
+      localStorage.setItem(key, "1");
+    }
+  }, [student]);
 
   // Refresh live score when stamps change
   useEffect(() => {
@@ -43,6 +84,20 @@ export default function StampsPage() {
       })
       .catch(() => {});
   }, [stamps, student]);
+
+  // Detect recap unlock at 3rd stamp
+  useEffect(() => {
+    const count = stamps.length;
+    if (prevDoneCountRef.current < 3 && count >= 3) {
+      setTimeout(() => setShowRecapCelebration(true), 600);
+    }
+    prevDoneCountRef.current = count;
+  }, [stamps]);
+
+  // Hide onboarding after first stamp
+  useEffect(() => {
+    if (stamps.length > 0) setShowOnboarding(false);
+  }, [stamps]);
 
   const stampsBySchool = useMemo(() => {
     const map = {};
@@ -65,6 +120,18 @@ export default function StampsPage() {
   const doneCount = stamps.length;
   const pct = totalSchools > 0 ? Math.round((doneCount / totalSchools) * 100) : 0;
 
+  // Personalized stand suggestions based on student filières
+  const preferredHalls = new Set(
+    (student.filieres || []).map((f) => FILIERE_TO_HALL[f]).filter(Boolean)
+  );
+  const suggestions = schools
+    .filter((s) => !stampsBySchool[s.id] && preferredHalls.has(s.hall_id))
+    .slice(0, 3);
+
+  // Next badge threshold
+  const nextBadge = BADGE_THRESHOLDS.find((b) => b.stamps > doneCount);
+  const stampsToNext = nextBadge ? nextBadge.stamps - doneCount : null;
+
   const toggleStamp = async (school) => {
     if (isAnon) {
       setToast({ msg: "Profil anonyme — impossible", type: "err" });
@@ -72,7 +139,6 @@ export default function StampsPage() {
     }
     const existing = stampsBySchool[school.id];
     if (existing) {
-      // delete stamp
       try {
         await deleteStamp(existing.id);
         setStamps(stamps.filter((s) => s.id !== existing.id));
@@ -110,7 +176,6 @@ export default function StampsPage() {
         qr_token: decoded,
       });
       if (res && res.stamp) {
-        // reload stamps
         await loadStamps(student.id);
         setSlamId(res.school?.id);
         setTimeout(() => setSlamId(null), 900);
@@ -119,13 +184,17 @@ export default function StampsPage() {
         } else {
           setToast({ msg: `✓ Tampon ${res.school?.name}`, type: "ok" });
         }
-        // Switch to hall of the scanned school
         const hIdx = halls.findIndex((h) => h.id === res.school?.hall_id);
         if (hIdx >= 0) setActiveHall(hIdx);
       }
     } catch (e) {
       setToast({ msg: "QR code inconnu", type: "err" });
     }
+  };
+
+  const jumpToSuggestion = (school) => {
+    const hIdx = halls.findIndex((h) => h.id === school.hall_id);
+    if (hIdx >= 0) setActiveHall(hIdx);
   };
 
   return (
@@ -182,60 +251,168 @@ export default function StampsPage() {
           </>
         ) : (
           <div className="stamps-bg">
-            {!isAnon && (
+            {/* Score banner */}
+            <motion.div
+              animate={{
+                background: scorePulse
+                  ? "linear-gradient(90deg, #fff5f5, white)"
+                  : "white",
+              }}
+              style={{
+                padding: "10px 16px",
+                borderBottom: "1px solid #f0f0f0",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexShrink: 0,
+              }}
+              data-testid="live-score-banner"
+            >
               <motion.div
-                animate={{
-                  background: scorePulse
-                    ? "linear-gradient(90deg, #fff5f5, white)"
-                    : "white",
-                }}
+                animate={scorePulse ? { scale: [1, 1.18, 1] } : {}}
+                transition={{ duration: 0.55 }}
                 style={{
-                  padding: "10px 16px",
+                  background: "var(--red)",
+                  color: "white",
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                  fontSize: 14,
+                  flexShrink: 0,
+                  boxShadow: scorePulse
+                    ? "0 0 0 6px rgba(227,0,11,0.18)"
+                    : "0 0 0 0 rgba(227,0,11,0)",
+                }}
+              >
+                {score}
+              </motion.div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Score live
+                </div>
+                <div style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>
+                  {score >= 76
+                    ? "🔥 Excellent parcours · récap disponible"
+                    : score >= 55
+                      ? "♨️ Bon parcours · continue !"
+                      : score === 0
+                        ? "Scanne ton 1er stand pour démarrer !"
+                        : "❄️ Encore quelques stands pour décoller"}
+                </div>
+              </div>
+              {/* Mini-leaderboard chip */}
+              {classRank && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  style={{
+                    background: classRank <= 3 ? "var(--red)" : "#f3f4f6",
+                    color: classRank <= 3 ? "white" : "#555",
+                    borderRadius: 99,
+                    padding: "3px 8px",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  #{classRank} 🏫
+                </motion.div>
+              )}
+            </motion.div>
+
+            {/* Next badge progress */}
+            {stampsToNext && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  padding: "7px 16px",
+                  background: "#fafaf8",
                   borderBottom: "1px solid #f0f0f0",
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  flexShrink: 0,
+                  gap: 6,
+                  fontSize: 11.5,
+                  color: "#666",
+                  fontWeight: 600,
                 }}
-                data-testid="live-score-banner"
               >
-                <motion.div
-                  animate={scorePulse ? { scale: [1, 1.18, 1] } : {}}
-                  transition={{ duration: 0.55 }}
-                  style={{
-                    background: "var(--red)",
-                    color: "white",
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 900,
-                    fontSize: 14,
-                    boxShadow: scorePulse
-                      ? "0 0 0 6px rgba(227,0,11,0.18)"
-                      : "0 0 0 0 rgba(227,0,11,0)",
-                  }}
-                >
-                  {score}
-                </motion.div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                    Score live
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>
-                    {score >= 76
-                      ? "🔥 Lead chaud · transmissible"
-                      : score >= 55
-                        ? "♨️ Lead tiède · objectif 76+"
-                        : score === 0
-                          ? "0 tampon = score 0. Scanne ton 1er stand !"
-                          : "❄️ Encore quelques stands pour décoller"}
-                  </div>
-                </div>
+                <span>{nextBadge.icon}</span>
+                <span>
+                  Plus que{" "}
+                  <strong style={{ color: "var(--ink)" }}>
+                    {stampsToNext} stand{stampsToNext > 1 ? "s" : ""}
+                  </strong>{" "}
+                  pour débloquer <strong style={{ color: "var(--ink)" }}>{nextBadge.label}</strong>
+                </span>
               </motion.div>
             )}
+
+            {/* Personalized suggestions */}
+            {suggestions.length > 0 && doneCount < totalSchools && (
+              <div
+                style={{
+                  padding: "10px 16px 8px",
+                  borderBottom: "1px solid #f0f0f0",
+                  background: "#fff9f9",
+                }}
+              >
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--red)", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 6 }}>
+                  ✦ À ne pas manquer selon ton profil
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {suggestions.map((s) => {
+                    const hallInfo = halls.find((h) => h.id === s.hall_id);
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => jumpToSuggestion(s)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: "white",
+                          border: "1px solid #eee",
+                          borderRadius: 8,
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: hallInfo?.color || "#ccc",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            fontWeight: 900,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {s.initials.substring(0, 2)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{s.name}</div>
+                          <div style={{ fontSize: 10.5, color: "#888" }}>{s.type}</div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "#aaa" }}>→</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="hall-tabs">
               {halls.map((h, i) => (
                 <button
@@ -300,6 +477,52 @@ export default function StampsPage() {
                 </>
               ) : null}
             </div>
+
+            {/* Onboarding tooltip for first-time users */}
+            <AnimatePresence>
+              {showOnboarding && doneCount === 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  style={{
+                    position: "absolute",
+                    bottom: 110,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "var(--ink)",
+                    color: "white",
+                    borderRadius: 10,
+                    padding: "8px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    zIndex: 20,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  onClick={() => setShowOnboarding(false)}
+                >
+                  👆 Commence par scanner un stand !
+                  <span style={{ opacity: 0.6, fontSize: 10 }}>✕</span>
+                  {/* Arrow pointing down */}
+                  <div style={{
+                    position: "absolute",
+                    bottom: -6,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: 0,
+                    height: 0,
+                    borderLeft: "6px solid transparent",
+                    borderRight: "6px solid transparent",
+                    borderTop: "6px solid var(--ink)",
+                  }} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <button
               className="scan-fab"
               onClick={() => setScannerOpen(true)}
@@ -330,6 +553,86 @@ export default function StampsPage() {
             </div>
           </div>
         )}
+
+        {/* Recap unlock celebration overlay */}
+        <AnimatePresence>
+          {showRecapCelebration && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "rgba(0,0,0,0.55)",
+                zIndex: 50,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "inherit",
+              }}
+              onClick={() => setShowRecapCelebration(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                style={{
+                  background: "white",
+                  borderRadius: 20,
+                  padding: "28px 24px",
+                  textAlign: "center",
+                  margin: "0 24px",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ fontSize: 48, marginBottom: 8 }}>🎉</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "var(--ink)", marginBottom: 6 }}>
+                  Récap débloqué !
+                </div>
+                <div style={{ fontSize: 13, color: "#666", marginBottom: 20, lineHeight: 1.5 }}>
+                  Tu as visité 3 stands. Découvre tes recommandations personnalisées et tes badges !
+                </div>
+                <button
+                  style={{
+                    background: "var(--red)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "12px 24px",
+                    fontSize: 14,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    width: "100%",
+                    marginBottom: 8,
+                  }}
+                  onClick={() => {
+                    setShowRecapCelebration(false);
+                    navigate("/passport/recap");
+                  }}
+                >
+                  Voir mon récap →
+                </button>
+                <button
+                  style={{
+                    background: "transparent",
+                    color: "#888",
+                    border: "none",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    padding: "4px",
+                  }}
+                  onClick={() => setShowRecapCelebration(false)}
+                >
+                  Continuer à explorer
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <BottomNav />
         <QRScanner
           open={scannerOpen}

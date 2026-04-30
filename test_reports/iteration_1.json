@@ -30,7 +30,10 @@
   },
   "test_credentials": {
     "demo_class_code": "PROF2026",
-    "demo_students": ["demo-lucas (individual profile)", "demo-theo (anonymous)"]
+    "demo_students": [
+      "demo-lucas (individual profile)",
+      "demo-theo (anonymous)"
+    ]
   },
   "seed_data_creation": "Backend seeds on startup: 16 schools with qr_tokens, demo class PROF2026, demo students Lucas and Théo",
   "retest_needed": false,
