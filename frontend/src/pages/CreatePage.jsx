@@ -45,7 +45,6 @@ export default function CreatePage() {
   const onSubmit = async () => {
     setErr("");
     if (!firstName.trim()) return setErr("Ton prénom est requis.");
-    if (!classCode.trim()) return setErr("Le code professeur est requis.");
     setSubmitting(true);
     try {
       const payload = {
@@ -101,9 +100,8 @@ export default function CreatePage() {
             >
               <div className="guide-step">Étape 1 / 2</div>
               <div className="guide-text">
-                Demande le code à ton professeur (ex :{" "}
-                <strong>PROF2026</strong>) puis complète ton profil pour
-                débloquer tampons &amp; recommandations.
+                Tu as un code professeur ? Saisis-le pour rejoindre ta classe (ex :{" "}
+                <strong>PROF2026</strong>). Sinon, laisse le champ vide et complète ton profil.
               </div>
             </motion.div>
 
@@ -112,7 +110,7 @@ export default function CreatePage() {
               variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
             >
               <div className="fl rowflex">
-                <LockIcon /> Code professeur
+                <LockIcon /> Code professeur <span style={{ fontWeight: 400, color: "#aaa", fontSize: 11, marginLeft: 4 }}>(facultatif)</span>
               </div>
               <input
                 className="fi"

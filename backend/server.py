@@ -84,7 +84,7 @@ class StudentCreate(BaseModel):
     classe: str = "Non renseigné"
     filieres: List[str] = Field(default_factory=list)
     formation: List[str] = Field(default_factory=list)
-    class_code: str
+    class_code: Optional[str] = None
 
 
 class StudentUpdate(BaseModel):
@@ -651,10 +651,11 @@ async def list_students(include_demo: bool = False, limit: int = 50):
 
 @api_router.post("/students")
 async def create_student(body: StudentCreate):
-    code = body.class_code.upper().strip()
-    c = await db.classes.find_one({"code": code})
-    if not c:
-        raise HTTPException(400, "Code professeur invalide")
+    code = body.class_code.upper().strip() if body.class_code else None
+    if code:
+        c = await db.classes.find_one({"code": code})
+        if not c:
+            raise HTTPException(400, "Code professeur invalide")
     serial = f"SAL-2026-{secrets.randbelow(90000) + 10000}"
     student = Student(
         serial=serial,
