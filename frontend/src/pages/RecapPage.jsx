@@ -207,6 +207,32 @@ export default function RecapPage() {
                         transition={{ delay: 0.2 + i * 0.08, duration: 0.7 }}
                       />
                     </div>
+                    {r.why && r.why.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: 10.5,
+                          color: "#999",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 4,
+                        }}
+                      >
+                        {r.why.map((w, j) => (
+                          <span
+                            key={j}
+                            style={{
+                              background: "#f5f4ef",
+                              padding: "2px 8px",
+                              borderRadius: 99,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {w}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </motion.div>
@@ -241,8 +267,135 @@ export default function RecapPage() {
                   Diplomeo : {student.consents?.d ? "Actif" : "Inactif"}
                   <br />
                   Lead score : <strong>{score} / 100</strong>
+                  {recap?.lead_value_eur > 0 && (
+                    <>
+                      {" · "}
+                      <strong style={{ color: "var(--red)" }}>
+                        Valeur lead : {recap.lead_value_eur} €
+                      </strong>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {recap?.score_breakdown && (
+                <div>
+                  <div className="rsec">
+                    Décomposition du score
+                    {recap.temperature && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          background: recap.temperature.color,
+                          color: "white",
+                          padding: "2px 9px",
+                          borderRadius: 99,
+                          fontSize: 10,
+                          letterSpacing: "0.05em",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {recap.temperature.label}
+                      </span>
+                    )}
+                  </div>
+                  <ScoreBreakdown breakdown={recap.score_breakdown} />
+                </div>
+              )}
+
+              {recap?.badges && (
+                <div>
+                  <div className="rsec">
+                    Badges débloqués · {recap.badges.length}/{recap.all_badges.length}
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: 8,
+                    }}
+                  >
+                    {recap.all_badges.map((b) => {
+                      const got = recap.badges.some((ub) => ub.id === b.id);
+                      return (
+                        <motion.div
+                          key={b.id}
+                          initial={{ scale: got ? 0.6 : 1, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ type: "spring", stiffness: 200, damping: 14 }}
+                          style={{
+                            background: got ? "white" : "#f5f4ef",
+                            border: got ? "1.5px solid var(--red)" : "1.5px solid #eee",
+                            borderRadius: 12,
+                            padding: "10px 6px",
+                            textAlign: "center",
+                            opacity: got ? 1 : 0.45,
+                            position: "relative",
+                          }}
+                          data-testid={`badge-${b.id}`}
+                        >
+                          <div style={{ fontSize: 26, marginBottom: 4 }}>{b.icon}</div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--ink)" }}>
+                            {b.label}
+                          </div>
+                          <div style={{ fontSize: 9.5, color: "#999", marginTop: 2, lineHeight: 1.3 }}>
+                            {b.desc}
+                          </div>
+                          {got && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                right: 4,
+                                background: "var(--red)",
+                                color: "white",
+                                fontSize: 9,
+                                fontWeight: 800,
+                                padding: "1px 6px",
+                                borderRadius: 99,
+                              }}
+                            >
+                              ✓
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                  {recap.badges.length === recap.all_badges.length ? (
+                    <div
+                      style={{
+                        background: "linear-gradient(90deg, #fbbf24, #f59e0b)",
+                        color: "white",
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        marginTop: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        textAlign: "center",
+                      }}
+                    >
+                      🏆 Tu as tout débloqué — tu rentres au tirage Salon Étudiant Major
+                    </div>
+                  ) : score >= 80 ? (
+                    <div
+                      style={{
+                        background: "#fff5f5",
+                        border: "1px solid #fca5a5",
+                        color: "#b91c1c",
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        marginTop: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        textAlign: "center",
+                      }}
+                    >
+                      🎁 Score ≥ 80 — tu participes au tirage au sort « Place Salon Étudiant Major »
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {leaderboard.length > 0 && (
                 <div>
@@ -389,6 +542,95 @@ export default function RecapPage() {
           onClose={() => setToast({ msg: "", type: "ok" })}
         />
       </div>
+    </div>
+  );
+}
+
+function ScoreBreakdown({ breakdown }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {breakdown.dimensions.map((d) => {
+        const pct = d.max > 0 ? (d.value / d.max) * 100 : 0;
+        return (
+          <div
+            key={d.key}
+            style={{
+              background: "white",
+              border: d.critical
+                ? "1.5px solid var(--red)"
+                : "1px solid #eee",
+              borderRadius: 12,
+              padding: "11px 13px",
+            }}
+            data-testid={`score-dim-${d.key}`}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span
+                style={{
+                  background: d.critical ? "var(--red)" : "var(--ink)",
+                  color: "white",
+                  padding: "2px 8px",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  borderRadius: 99,
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {d.key} · {d.weight}
+              </span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", flex: 1 }}>
+                {d.label}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: d.critical ? "var(--red)" : "var(--ink)" }}>
+                {d.value}<span style={{ color: "#999", fontWeight: 600 }}> / {d.max}</span>
+              </div>
+            </div>
+            <div style={{ height: 4, background: "#f0f0f0", borderRadius: 99, overflow: "hidden", marginBottom: 8 }}>
+              <div
+                style={{
+                  width: `${pct}%`,
+                  height: "100%",
+                  background: d.critical ? "var(--red)" : "var(--ink)",
+                  transition: "width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
+                }}
+              />
+            </div>
+            {d.items.map((it, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 11,
+                  color: it.pts > 0 ? "var(--ink)" : "#bbb",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "2px 0",
+                }}
+              >
+                <span>{it.label}</span>
+                <span style={{ fontWeight: 700, color: it.pts > 0 ? "var(--green)" : "#ccc" }}>
+                  {it.pts > 0 ? `+${it.pts}` : "0"} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {breakdown.gating_zero && (
+        <div
+          style={{
+            background: "#fff5f5",
+            border: "1px solid #fca5a5",
+            borderRadius: 10,
+            padding: 10,
+            fontSize: 11.5,
+            color: "#b91c1c",
+            lineHeight: 1.45,
+          }}
+        >
+          ⚠️ <strong>Gating rule</strong> : 0 tampon enregistré → score forcé à 0. Au moins 1 stand
+          scanné est requis pour qu'un lead soit transmissible.
+        </div>
+      )}
     </div>
   );
 }

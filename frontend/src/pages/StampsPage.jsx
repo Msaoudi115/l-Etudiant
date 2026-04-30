@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import QRScanner from "@/components/QRScanner";
 import Toast from "@/components/Toast";
 import { BackIcon, ScanIcon } from "@/components/icons";
-import { getHalls, getSchools, createStamp, deleteStamp } from "@/lib/api";
+import { getHalls, getSchools, createStamp, deleteStamp, getRecap } from "@/lib/api";
 
 export default function StampsPage() {
   const navigate = useNavigate();
@@ -17,6 +17,8 @@ export default function StampsPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [slamId, setSlamId] = useState(null);
   const [toast, setToast] = useState({ msg: "", type: "ok" });
+  const [score, setScore] = useState(0);
+  const [scorePulse, setScorePulse] = useState(false);
 
   useEffect(() => {
     Promise.all([getHalls(), getSchools()]).then(([h, s]) => {
@@ -24,6 +26,23 @@ export default function StampsPage() {
       setSchools(s);
     });
   }, []);
+
+  // Refresh live score when stamps change
+  useEffect(() => {
+    if (!student || student.is_anonymous) return;
+    getRecap(student.id)
+      .then((r) => {
+        const newScore = r.score || 0;
+        setScore((prev) => {
+          if (newScore !== prev) {
+            setScorePulse(true);
+            setTimeout(() => setScorePulse(false), 800);
+          }
+          return newScore;
+        });
+      })
+      .catch(() => {});
+  }, [stamps, student]);
 
   const stampsBySchool = useMemo(() => {
     const map = {};
@@ -163,6 +182,60 @@ export default function StampsPage() {
           </>
         ) : (
           <div className="stamps-bg">
+            {!isAnon && (
+              <motion.div
+                animate={{
+                  background: scorePulse
+                    ? "linear-gradient(90deg, #fff5f5, white)"
+                    : "white",
+                }}
+                style={{
+                  padding: "10px 16px",
+                  borderBottom: "1px solid #f0f0f0",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexShrink: 0,
+                }}
+                data-testid="live-score-banner"
+              >
+                <motion.div
+                  animate={scorePulse ? { scale: [1, 1.18, 1] } : {}}
+                  transition={{ duration: 0.55 }}
+                  style={{
+                    background: "var(--red)",
+                    color: "white",
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    fontSize: 14,
+                    boxShadow: scorePulse
+                      ? "0 0 0 6px rgba(227,0,11,0.18)"
+                      : "0 0 0 0 rgba(227,0,11,0)",
+                  }}
+                >
+                  {score}
+                </motion.div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Score live
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>
+                    {score >= 76
+                      ? "🔥 Lead chaud · transmissible"
+                      : score >= 55
+                        ? "♨️ Lead tiède · objectif 76+"
+                        : score === 0
+                          ? "0 tampon = score 0. Scanne ton 1er stand !"
+                          : "❄️ Encore quelques stands pour décoller"}
+                  </div>
+                </div>
+              </motion.div>
+            )}
             <div className="hall-tabs">
               {halls.map((h, i) => (
                 <button

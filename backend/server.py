@@ -70,6 +70,11 @@ class Student(BaseModel):
     class_code: Optional[str] = None
     is_demo: bool = False
     is_anonymous: bool = False  # Théo case
+    # Engagement signals (D2 / D3)
+    scan_exposant: bool = False
+    email_opened: bool = False
+    clicked_reco: bool = False
+    returned_site: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -89,6 +94,10 @@ class StudentUpdate(BaseModel):
     filieres: Optional[List[str]] = None
     formation: Optional[List[str]] = None
     consents: Optional[Consents] = None
+    scan_exposant: Optional[bool] = None
+    email_opened: Optional[bool] = None
+    clicked_reco: Optional[bool] = None
+    returned_site: Optional[bool] = None
 
 
 class Stamp(BaseModel):
@@ -123,29 +132,65 @@ class ClassCreate(BaseModel):
 
 # ============== SEED ==============
 HALLS_SEED = [
-    {"id": "i", "label": "Ingénierie", "color": "#1A237E"},
+    {"id": "i", "label": "Ingénierie & Numérique", "color": "#1A237E"},
     {"id": "c", "label": "Commerce", "color": "#E3000B"},
-    {"id": "p", "label": "Prépas", "color": "#6D28D9"},
+    {"id": "s", "label": "Sciences Po · Université", "color": "#6D28D9"},
+    {"id": "a", "label": "Arts & Design", "color": "#db2777"},
     {"id": "k", "label": "Conférences", "color": "#047857"},
 ]
 
+# Filières considered premium (D4 commercial value bonus)
+PREMIUM_FILIERES = {"Commerce", "Ingénierie", "Sciences Po", "Numérique"}
+
 SCHOOLS_SEED = [
+    # Ingénierie & Numérique (14)
     {"id": "s1", "hall_id": "i", "name": "CentraleSupélec", "type": "Grande école · Saclay", "initials": "CS"},
-    {"id": "s2", "hall_id": "i", "name": "INSA Lyon", "type": "École publique · Lyon", "initials": "IN"},
-    {"id": "s3", "hall_id": "i", "name": "École des Ponts", "type": "Grande école · Paris", "initials": "EP"},
-    {"id": "s4", "hall_id": "i", "name": "Arts et Métiers", "type": "Grande école · Paris", "initials": "AM"},
-    {"id": "s5", "hall_id": "i", "name": "ISEP Paris", "type": "École privée · Paris", "initials": "IS"},
-    {"id": "s6", "hall_id": "c", "name": "HEC Paris", "type": "Grande école · Jouy-en-Josas", "initials": "HC"},
-    {"id": "s7", "hall_id": "c", "name": "ESSEC", "type": "Grande école · Cergy", "initials": "ES"},
-    {"id": "s8", "hall_id": "c", "name": "ESCP", "type": "Grande école · Paris", "initials": "EC"},
-    {"id": "s9", "hall_id": "c", "name": "emlyon", "type": "École de commerce · Lyon", "initials": "EM"},
-    {"id": "s10", "hall_id": "p", "name": "Louis-le-Grand", "type": "CPGE MPSI-MP · Paris 5e", "initials": "LG"},
-    {"id": "s11", "hall_id": "p", "name": "Henri IV", "type": "CPGE PCSI-PSI · Paris 5e", "initials": "H4"},
-    {"id": "s12", "hall_id": "p", "name": "Janson de Sailly", "type": "CPGE MPSI · Paris 16e", "initials": "JS"},
-    {"id": "c1", "hall_id": "k", "name": "Intégrer une école d'ingénieurs", "type": "Amphi A · 14h00–14h45", "initials": "▶"},
-    {"id": "c2", "hall_id": "k", "name": "Parcoursup 2026", "type": "Amphi B · 15h00–15h30", "initials": "▶"},
-    {"id": "c3", "hall_id": "k", "name": "Grandes écoles de commerce", "type": "Amphi A · 16h00–16h45", "initials": "▶"},
+    {"id": "s2", "hall_id": "i", "name": "École des Ponts ParisTech", "type": "Grande école · Marne-la-Vallée", "initials": "EP"},
+    {"id": "s3", "hall_id": "i", "name": "Arts et Métiers", "type": "Grande école · Paris", "initials": "AM"},
+    {"id": "s4", "hall_id": "i", "name": "Mines Paris - PSL", "type": "Grande école · Paris", "initials": "MP"},
+    {"id": "s5", "hall_id": "i", "name": "Télécom Paris", "type": "Grande école · Palaiseau", "initials": "TP"},
+    {"id": "s6", "hall_id": "i", "name": "INSA Lyon", "type": "École publique · Lyon", "initials": "IN"},
+    {"id": "s7", "hall_id": "i", "name": "EPITA", "type": "École d'ingénieurs · Le Kremlin-Bicêtre", "initials": "EA"},
+    {"id": "s8", "hall_id": "i", "name": "ESILV", "type": "Léonard de Vinci · La Défense", "initials": "EV"},
+    {"id": "s9", "hall_id": "i", "name": "EFREI", "type": "École d'ingénieurs · Villejuif", "initials": "EF"},
+    {"id": "s10", "hall_id": "i", "name": "ISEP Paris", "type": "École privée · Paris", "initials": "IS"},
+    {"id": "s11", "hall_id": "i", "name": "École 42", "type": "École de code · Paris", "initials": "42"},
+    {"id": "s12", "hall_id": "i", "name": "Epitech", "type": "École d'informatique · Paris", "initials": "ET"},
+    {"id": "s13", "hall_id": "i", "name": "Hetic", "type": "École du web · Montreuil", "initials": "HE"},
+    {"id": "s14", "hall_id": "i", "name": "Ynov Campus", "type": "École tech & digital · Paris", "initials": "YN"},
+
+    # Commerce (8)
+    {"id": "s15", "hall_id": "c", "name": "HEC Paris", "type": "Grande école · Jouy-en-Josas", "initials": "HC"},
+    {"id": "s16", "hall_id": "c", "name": "ESSEC", "type": "Grande école · Cergy", "initials": "ES"},
+    {"id": "s17", "hall_id": "c", "name": "ESCP Business School", "type": "Grande école · Paris", "initials": "EC"},
+    {"id": "s18", "hall_id": "c", "name": "EDHEC", "type": "Grande école · Lille / Nice", "initials": "ED"},
+    {"id": "s19", "hall_id": "c", "name": "emlyon business school", "type": "Grande école · Lyon", "initials": "EM"},
+    {"id": "s20", "hall_id": "c", "name": "NEOMA", "type": "Grande école · Reims / Rouen", "initials": "NE"},
+    {"id": "s21", "hall_id": "c", "name": "SKEMA Business School", "type": "Grande école · Paris / Lille", "initials": "SK"},
+    {"id": "s22", "hall_id": "c", "name": "Audencia", "type": "Grande école · Nantes", "initials": "AU"},
+
+    # Sciences Po · Université (8)
+    {"id": "s23", "hall_id": "s", "name": "Sciences Po Paris", "type": "IEP · Paris 7e", "initials": "SP"},
+    {"id": "s24", "hall_id": "s", "name": "IEP Lille", "type": "Sciences Po · Lille", "initials": "SL"},
+    {"id": "s25", "hall_id": "s", "name": "IEP Aix-en-Provence", "type": "Sciences Po · Aix", "initials": "SX"},
+    {"id": "s26", "hall_id": "s", "name": "IEP Lyon", "type": "Sciences Po · Lyon", "initials": "SY"},
+    {"id": "s27", "hall_id": "s", "name": "IEP Bordeaux", "type": "Sciences Po · Bordeaux", "initials": "SB"},
+    {"id": "s28", "hall_id": "s", "name": "PSL Université", "type": "Université · Paris", "initials": "PS"},
+    {"id": "s29", "hall_id": "s", "name": "Université Paris-Saclay", "type": "Université · Saclay", "initials": "PX"},
+    {"id": "s30", "hall_id": "s", "name": "Sorbonne (PASS)", "type": "Médecine · Paris", "initials": "SO"},
+
+    # Arts & Design (4)
+    {"id": "s31", "hall_id": "a", "name": "Penninghen", "type": "École d'art & design · Paris", "initials": "PN"},
+    {"id": "s32", "hall_id": "a", "name": "Gobelins", "type": "École de l'image · Paris", "initials": "GB"},
+    {"id": "s33", "hall_id": "a", "name": "École Boulle", "type": "Arts appliqués · Paris", "initials": "BL"},
+    {"id": "s34", "hall_id": "a", "name": "Strate École de Design", "type": "Design · Sèvres", "initials": "ST"},
+
+    # Conférences (5)
+    {"id": "c1", "hall_id": "k", "name": "Parcoursup 2026 — Le mode d'emploi", "type": "Amphi A · 14h00–14h45", "initials": "▶"},
+    {"id": "c2", "hall_id": "k", "name": "Intégrer une école d'ingénieurs", "type": "Amphi B · 15h00–15h45", "initials": "▶"},
+    {"id": "c3", "hall_id": "k", "name": "Grandes écoles de commerce post-bac", "type": "Amphi A · 16h00–16h45", "initials": "▶"},
     {"id": "c4", "hall_id": "k", "name": "Financer ses études", "type": "Amphi B · 16h30–17h00", "initials": "▶"},
+    {"id": "c5", "hall_id": "k", "name": "Étudier à l'étranger après le bac", "type": "Amphi A · 17h00–17h45", "initials": "▶"},
 ]
 
 
@@ -189,9 +234,28 @@ async def seed_database():
             "class_code": "PROF2026",
             "is_demo": True,
             "is_anonymous": False,
+            "scan_exposant": True,
+            "email_opened": True,
+            "clicked_reco": True,
+            "returned_site": False,
             "created_at": now_iso(),
         }
         await db.students.insert_one(lucas)
+        # Lucas's stamps with new IDs
+        lucas_stamps = ["s1", "s2", "s6", "s10", "c2"]
+        for sid in lucas_stamps:
+            sc = await db.schools.find_one({"id": sid}, {"_id": 0})
+            if not sc:
+                continue
+            await db.stamps.insert_one({
+                "id": str(uuid.uuid4()),
+                "student_id": "demo-lucas",
+                "school_id": sc["id"],
+                "hall_id": sc["hall_id"],
+                "school_name": sc["name"],
+                "time_label": f"{14 + secrets.randbelow(4)}h{str(secrets.randbelow(60)).zfill(2)}",
+                "timestamp": now_iso(),
+            })
 
     # Demo student: Théo (anonyme)
     if await db.students.count_documents({"id": "demo-theo"}) == 0:
@@ -233,33 +297,39 @@ async def seed_database():
          "filieres": ["Commerce", "Droit"], "formation": ["Grande École", "IEP"],
          "consents": {"l": True, "d": True, "c": False, "e": True},
          "class_code": "PROF2026",
-         "stamps": ["s6", "s7", "s8", "c2"]},
+         "stamps": ["s15", "s16", "s17", "c1"],
+         "scan_exposant": True, "email_opened": True, "clicked_reco": False, "returned_site": False},
         {"id": "demo-nadia", "name": "Nadia Rahmani", "emoji": "👩‍🎓", "classe": "Terminale générale",
          "filieres": ["Santé", "Sciences Po"], "formation": ["Université", "IEP"],
          "consents": {"l": True, "d": True, "c": True, "e": False},
          "class_code": "PROF2026",
-         "stamps": ["s11", "c2", "c4"]},
+         "stamps": ["s23", "s30", "c1", "c4"],
+         "scan_exposant": True, "email_opened": True, "clicked_reco": True, "returned_site": False},
         {"id": "demo-hugo", "name": "Hugo Lambert", "emoji": "👨‍🎓", "classe": "Terminale générale",
-         "filieres": ["Ingénierie", "Numérique"], "formation": ["École d'ingénieurs", "Prépa CPGE"],
+         "filieres": ["Ingénierie", "Numérique"], "formation": ["École d'ingénieurs"],
          "consents": {"l": True, "d": False, "c": False, "e": False},
          "class_code": "PROF2026",
-         "stamps": ["s1", "s2"]},
+         "stamps": ["s1", "s11"],
+         "scan_exposant": False, "email_opened": False, "clicked_reco": False, "returned_site": False},
         # class PROF2026B (Louis-le-Grand)
         {"id": "demo-sarah", "name": "Sarah Mercier", "emoji": "👩", "classe": "Terminale générale",
          "filieres": ["Ingénierie", "Numérique"], "formation": ["École d'ingénieurs", "Prépa CPGE"],
          "consents": {"l": True, "d": True, "c": True, "e": True},
          "class_code": "PROF2026B",
-         "stamps": ["s1", "s2", "s3", "s4", "s10", "c1", "c2"]},
+         "stamps": ["s1", "s2", "s3", "s4", "s11", "s12", "c1", "c2"],
+         "scan_exposant": True, "email_opened": True, "clicked_reco": True, "returned_site": True},
         {"id": "demo-malik", "name": "Malik Benali", "emoji": "😎", "classe": "Terminale générale",
          "filieres": ["Commerce"], "formation": ["Grande École"],
          "consents": {"l": True, "d": True, "c": True, "e": False},
          "class_code": "PROF2026B",
-         "stamps": ["s6", "s7", "s8", "s9", "c3"]},
+         "stamps": ["s15", "s16", "s17", "s19", "c3"],
+         "scan_exposant": True, "email_opened": True, "clicked_reco": False, "returned_site": True},
         {"id": "demo-lea", "name": "Léa Dupont", "emoji": "🤓", "classe": "Terminale générale",
          "filieres": ["Arts"], "formation": ["Université"],
          "consents": {"l": True, "d": False, "c": False, "e": False},
          "class_code": "PROF2026B",
-         "stamps": ["s12"]},
+         "stamps": ["s31"],
+         "scan_exposant": False, "email_opened": False, "clicked_reco": False, "returned_site": False},
     ]
 
     for f in fixtures:
@@ -282,6 +352,10 @@ async def seed_database():
             "class_code": f["class_code"],
             "is_demo": True,
             "is_anonymous": False,
+            "scan_exposant": f.get("scan_exposant", False),
+            "email_opened": f.get("email_opened", False),
+            "clicked_reco": f.get("clicked_reco", False),
+            "returned_site": f.get("returned_site", False),
             "created_at": now_iso(),
         }
         await db.students.insert_one(student_doc)
@@ -310,13 +384,189 @@ def clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def compute_score(stamp_count: int, consents_count: int, filieres_count: int) -> int:
+    # Legacy wrapper kept for backward compat — uses simplified formula.
+    breakdown = score_breakdown(
+        stamp_count=stamp_count,
+        consents_count=consents_count,
+        filieres=[],
+        scan_exposant=False,
+        conf_count=0,
+        email_opened=False,
+        clicked_reco=False,
+        returned_site=False,
+    )
+    return breakdown["total"]
+
+
+def _premium_count(filieres):
+    return sum(1 for f in (filieres or []) if f in PREMIUM_FILIERES)
+
+
+def score_breakdown(
+    stamp_count: int,
+    consents_count: int,
+    filieres,
+    scan_exposant: bool = False,
+    conf_count: int = 0,
+    email_opened: bool = False,
+    clicked_reco: bool = False,
+    returned_site: bool = False,
+):
+    """
+    Real lead scoring — D1+D2+D3+D4 from case study.
+    Hard rule: if no stamp at all (stamp_count == 0) -> total = 0.
+    Score capped at 98 (99-100 reserved for manual validation).
+    """
+    fil = list(filieres or [])
+
+    # D1 - Intentionnalité (25 pts max)
+    d1_filieres = min(len(fil), 3) * 5  # cap 3
+    d1_consents = min(consents_count, 4) * 2.5
+    d1_total = d1_filieres + d1_consents
+
+    # D2 - Comportement in-fair (40 pts max)
+    d2_stands = min(stamp_count, 8) * 3  # cap 8
+    d2_scan = 6 if scan_exposant else 0
+    d2_conf = 10 if conf_count > 0 else 0
+    d2_total = d2_stands + d2_scan + d2_conf
+
+    # D3 - Engagement post-fair (25 pts max)
+    d3_email = 8 if email_opened else 0
+    d3_click = 10 if clicked_reco else 0
+    d3_return = 7 if returned_site else 0
+    d3_total = d3_email + d3_click + d3_return
+
+    # D4 - Valeur commerciale (10 pts max)
+    if consents_count >= 3:
+        d4_consents = 5
+    elif consents_count >= 1:
+        d4_consents = 2
+    else:
+        d4_consents = 0
+    d4_premium = min(_premium_count(fil), 2) * 2.5
+    d4_total = d4_consents + d4_premium
+
+    raw = d1_total + d2_total + d3_total + d4_total
     if stamp_count == 0:
-        return 0
-    base = 40
-    base += min(stamp_count, 10) * 5
-    base += consents_count * 2
-    base += min(filieres_count, 3) * 3
-    return min(98, base)
+        capped = 0  # gating rule from case study
+    else:
+        capped = min(98, round(raw))
+
+    return {
+        "total": int(capped),
+        "raw": round(raw, 1),
+        "gating_zero": stamp_count == 0,
+        "dimensions": [
+            {
+                "key": "D1",
+                "label": "Intentionnalité déclarée",
+                "weight": "25%",
+                "value": round(d1_total, 1),
+                "max": 25,
+                "items": [
+                    {"label": f"{min(len(fil), 3)} filière(s) × 5", "pts": d1_filieres, "max": 15},
+                    {"label": f"{min(consents_count, 4)} consent. × 2,5", "pts": d1_consents, "max": 10},
+                ],
+            },
+            {
+                "key": "D2",
+                "label": "Comportement in-fair",
+                "weight": "40%",
+                "value": round(d2_total, 1),
+                "max": 40,
+                "critical": True,
+                "items": [
+                    {"label": f"{min(stamp_count, 8)} stand(s) × 3", "pts": d2_stands, "max": 24},
+                    {"label": "Scan exposant (QR)", "pts": d2_scan, "max": 6},
+                    {"label": "Conférence suivie", "pts": d2_conf, "max": 10},
+                ],
+            },
+            {
+                "key": "D3",
+                "label": "Engagement post-fair",
+                "weight": "25%",
+                "value": round(d3_total, 1),
+                "max": 25,
+                "items": [
+                    {"label": "Email post-fair ouvert", "pts": d3_email, "max": 8},
+                    {"label": "Clic sur recommandation", "pts": d3_click, "max": 10},
+                    {"label": "Retour sur letudiant.fr", "pts": d3_return, "max": 7},
+                ],
+            },
+            {
+                "key": "D4",
+                "label": "Valeur commerciale",
+                "weight": "10%",
+                "value": round(d4_total, 1),
+                "max": 10,
+                "items": [
+                    {"label": f"Multi-consents ({consents_count})", "pts": d4_consents, "max": 5},
+                    {"label": f"{_premium_count(fil)} filière(s) premium × 2,5", "pts": d4_premium, "max": 5},
+                ],
+            },
+        ],
+    }
+
+
+def lead_temperature(score: int):
+    if score >= 76:
+        return {"label": "🔥 Hot", "color": "#dc2626", "value": "hot"}
+    if score >= 55:
+        return {"label": "♨️ Tiède", "color": "#f59e0b", "value": "warm"}
+    if score >= 30:
+        return {"label": "❄️ Froid", "color": "#3b82f6", "value": "cold"}
+    return {"label": "🚫 Non-qualifié", "color": "#9ca3af", "value": "none"}
+
+
+def lead_value_eur(score: int):
+    """Diplomeo lead value range 40-80€ — applied progressively above 55."""
+    if score >= 76:
+        return 80
+    if score >= 55:
+        return 40 + round((score - 55) * 40 / 21)
+    return 0  # below threshold = not transmissible
+
+
+# ============== BADGES ==============
+BADGES_DEFS = [
+    {"id": "first", "label": "Premier pas", "icon": "👣", "desc": "Ton 1er tampon"},
+    {"id": "explorer", "label": "Explorer", "icon": "🧭", "desc": "1 stand par pôle"},
+    {"id": "marathon", "label": "Marathonien", "icon": "🏃", "desc": "5+ stands visités"},
+    {"id": "curieux", "label": "Curieux", "icon": "🎤", "desc": "1 conférence suivie"},
+    {"id": "premium", "label": "Premium", "icon": "💎", "desc": "Stand d'une filière premium"},
+    {"id": "completiste", "label": "Complétiste", "icon": "🏆", "desc": "10+ stands"},
+]
+
+
+def compute_badges(stamps, schools_by_id, conf_count: int, filieres):
+    """Return list of badge ids unlocked."""
+    unlocked = set()
+    if len(stamps) >= 1:
+        unlocked.add("first")
+    if len(stamps) >= 5:
+        unlocked.add("marathon")
+    if len(stamps) >= 10:
+        unlocked.add("completiste")
+    if conf_count >= 1:
+        unlocked.add("curieux")
+    # Explorer: at least 1 stamp in each non-conference hall
+    halls_visited = set()
+    for st in stamps:
+        sc = schools_by_id.get(st.get("school_id"))
+        if sc and sc.get("hall_id") and sc["hall_id"] != "k":
+            halls_visited.add(sc["hall_id"])
+    non_conf_halls = {h["id"] for h in HALLS_SEED if h["id"] != "k"}
+    if non_conf_halls.issubset(halls_visited):
+        unlocked.add("explorer")
+    # Premium: visited at least one stamp in a hall matching their premium filière
+    premium_hall_map = {"Ingénierie": "i", "Numérique": "i", "Commerce": "c", "Sciences Po": "s"}
+    user_premium_halls = {premium_hall_map[f] for f in (filieres or []) if f in premium_hall_map}
+    if any(
+        (schools_by_id.get(st.get("school_id")) or {}).get("hall_id") in user_premium_halls
+        for st in stamps
+    ):
+        unlocked.add("premium")
+    return [b for b in BADGES_DEFS if b["id"] in unlocked]
 
 
 # ============== ROUTES ==============
@@ -568,35 +818,61 @@ async def recap(student_id: str):
     consents = student.get("consents", {})
     consents_count = sum(1 for v in consents.values() if v)
     filieres = student.get("filieres", [])
-    score = compute_score(len(stamps), consents_count, len(filieres))
 
-    # Static reco: match by filiere and stamps
+    # Split stamps: schools vs conferences (hall_id == "k")
+    school_stamps = [s for s in stamps if s.get("hall_id") != "k"]
+    conf_stamps = [s for s in stamps if s.get("hall_id") == "k"]
+
+    breakdown = score_breakdown(
+        stamp_count=len(school_stamps),
+        consents_count=consents_count,
+        filieres=filieres,
+        scan_exposant=bool(student.get("scan_exposant")),
+        conf_count=len(conf_stamps),
+        email_opened=bool(student.get("email_opened")),
+        clicked_reco=bool(student.get("clicked_reco")),
+        returned_site=bool(student.get("returned_site")),
+    )
+    score = breakdown["total"]
+
+    # Recos
     schools = await db.schools.find({}, {"_id": 0}).to_list(500)
+    schools_by_id = {sc["id"]: sc for sc in schools}
     visited_ids = {s["school_id"] for s in stamps}
 
     recos = []
-    if student.get("is_anonymous"):
-        pass
-    else:
-        # Priority: schools in visited halls that match filieres
-        visited_halls = {s["hall_id"] for s in stamps}
+    if not student.get("is_anonymous"):
+        visited_halls = {s["hall_id"] for s in stamps if s.get("hall_id") != "k"}
         for sc in schools:
-            if sc["id"] in visited_ids:
+            if sc["id"] in visited_ids or sc["hall_id"] == "k":
                 continue
             score_match = 60
+            why = ["Score de base 60"]
             if sc["hall_id"] in visited_halls:
                 score_match += 20
+                why.append("+20 pôle déjà visité")
             if "Ingénierie" in filieres and sc["hall_id"] == "i":
                 score_match += 14
+                why.append("+14 filière Ingénierie")
             if "Commerce" in filieres and sc["hall_id"] == "c":
                 score_match += 14
-            if sc["hall_id"] == "k":
-                continue
+                why.append("+14 filière Commerce")
+            if "Sciences Po" in filieres and sc["hall_id"] == "s":
+                score_match += 14
+                why.append("+14 filière Sciences Po")
+            if "Numérique" in filieres and sc["hall_id"] == "i":
+                score_match += 8
+                why.append("+8 filière Numérique")
+            if "Arts" in filieres and sc["hall_id"] == "a":
+                score_match += 12
+                why.append("+12 filière Arts")
             recos.append({
                 "name": sc["name"],
                 "type": sc["type"],
+                "school_id": sc["id"],
                 "m": min(98, score_match),
                 "t": score_match >= 85,
+                "why": why,
             })
         recos.sort(key=lambda r: -r["m"])
         recos = recos[:3]
@@ -606,15 +882,26 @@ async def recap(student_id: str):
     if not student.get("is_anonymous"):
         if filieres and "Ingénierie" in filieres:
             next_steps.append({"t": "JPO CentraleSupélec", "d": "14 mai 2026", "c": "#E3000B"})
-        next_steps.append({"t": "Clôture Parcoursup", "d": "10 mai 2026", "c": "#1A237E"})
+        if filieres and "Commerce" in filieres:
+            next_steps.append({"t": "JPO HEC Paris", "d": "20 mai 2026", "c": "#E3000B"})
+        next_steps.append({"t": "Clôture vœux Parcoursup", "d": "10 mai 2026", "c": "#1A237E"})
         next_steps.append({"t": "Webinaire Orientation", "d": "8 mai 2026", "c": "#6D28D9"})
+
+    badges = compute_badges(stamps, schools_by_id, len(conf_stamps), filieres)
 
     return {
         "student": student,
         "stamps": stamps,
+        "school_stamps_count": len(school_stamps),
+        "conf_stamps_count": len(conf_stamps),
         "score": score,
+        "score_breakdown": breakdown,
+        "temperature": lead_temperature(score),
+        "lead_value_eur": lead_value_eur(score),
         "recos": recos,
         "next": next_steps,
+        "badges": badges,
+        "all_badges": BADGES_DEFS,
         "duration_min": 30 + len(stamps) * 8 if len(stamps) > 0 else 0,
     }
 
@@ -811,11 +1098,25 @@ async def leads(
         if not _passes_lead_filter(s, filiere, consent, min_stamps, stamp_count):
             continue
         consents = s.get("consents") or {}
-        score = compute_score(
-            stamp_count,
-            sum(1 for v in consents.values() if v),
-            len(s.get("filieres") or []),
+        consents_count = sum(1 for v in consents.values() if v)
+        # Stamps split: schools vs conferences
+        school_stamps = await db.stamps.count_documents(
+            {"student_id": s["id"], "hall_id": {"$ne": "k"}}
         )
+        conf_stamps = await db.stamps.count_documents(
+            {"student_id": s["id"], "hall_id": "k"}
+        )
+        breakdown = score_breakdown(
+            stamp_count=school_stamps,
+            consents_count=consents_count,
+            filieres=s.get("filieres") or [],
+            scan_exposant=bool(s.get("scan_exposant")),
+            conf_count=conf_stamps,
+            email_opened=bool(s.get("email_opened")),
+            clicked_reco=bool(s.get("clicked_reco")),
+            returned_site=bool(s.get("returned_site")),
+        )
+        score = breakdown["total"]
         rows.append({
             "id": s["id"],
             "name": s["name"],
@@ -827,6 +1128,9 @@ async def leads(
             "consents": consents,
             "stamp_count": stamp_count,
             "score": score,
+            "score_breakdown": breakdown,
+            "temperature": lead_temperature(score),
+            "lead_value_eur": lead_value_eur(score),
             "is_demo": s.get("is_demo", False),
         })
     rows.sort(key=lambda r: (-r["score"], -r["stamp_count"]))
