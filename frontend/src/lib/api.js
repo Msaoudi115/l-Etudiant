@@ -28,6 +28,8 @@ export const createStamp = (payload) =>
   api.post("/stamps", payload).then((r) => r.data);
 export const deleteStamp = (id) =>
   api.delete(`/stamps/${id}`).then((r) => r.data);
+export const rateStamp = (stampId, rating) =>
+  api.patch(`/stamps/${stampId}/rating`, { rating }).then((r) => r.data);
 export const getRecap = (id) =>
   api.get(`/students/${id}/recap`).then((r) => r.data);
 

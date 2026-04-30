@@ -108,12 +108,17 @@ class Stamp(BaseModel):
     hall_id: str
     school_name: str
     time_label: str
+    rating: Optional[int] = None  # 1-5, given by student after visit
     timestamp: str = Field(default_factory=now_iso)
 
 
 class StampCreate(BaseModel):
     student_id: str
     qr_token: str
+
+
+class StampRating(BaseModel):
+    rating: int  # 1-5
 
 
 class ClassRoom(BaseModel):
@@ -138,6 +143,28 @@ HALLS_SEED = [
     {"id": "a", "label": "Arts & Tourisme", "color": "#db2777"},
     {"id": "k", "label": "Orientation & Prépa", "color": "#047857"},
 ]
+
+# Filières → hall mapping (used for D3 pertinence + recommendations)
+FILIERE_TO_HALL = {
+    "Ingénierie": "i",
+    "Numérique": "i",
+    "Commerce": "c",
+    "Sciences Po": "s",
+    "Santé": "s",
+    "Arts": "a",
+    "Droit": "s",
+}
+
+# Keywords per filière used to match against school type descriptions
+FILIERE_KEYWORDS = {
+    "Ingénierie": ["ingénieurs", "ingénierie", "ingénieur"],
+    "Numérique":  ["numérique", "informatique", "digital", "jeu vidéo", "cybersécurité", "tech"],
+    "Commerce":   ["commerce", "management", "business", "marketing", "gestion", "finance", "communication", "logistique"],
+    "Sciences Po": ["sciences po", "iep", "politique", "social"],
+    "Santé":      ["santé", "médecine", "pharmacie", "paramédical", "ostéopathie", "kiné", "maïeutique", "chiro"],
+    "Arts":       ["art", "design", "cinéma", "animation", "hôtellerie", "tourisme", "luxe", "audiovisuel"],
+    "Droit":      ["droit", "juridique"],
+}
 
 # Filières considered premium (D4 commercial value bonus)
 PREMIUM_FILIERES = {"Commerce", "Ingénierie", "Sciences Po", "Numérique"}
@@ -445,74 +472,102 @@ def clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 
+def _filiere_type_score(filieres: list, school_type: str) -> int:
+    """0-50pts: how well school's type description matches student's declared filières.
+    Points are distributed equally across declared filières — matching all gives 50pts,
+    matching only one out of two gives 25pts, etc. This creates individual scores per school."""
+    if not filieres:
+        return 0
+    type_lower = school_type.lower()
+    pts_per_filiere = 50 / len(filieres)
+    total = sum(
+        pts_per_filiere
+        for f in filieres
+        if f in FILIERE_KEYWORDS and any(kw in type_lower for kw in FILIERE_KEYWORDS[f])
+    )
+    return min(50, round(total))
+
+
+def _type_similarity(type_a: str, type_b: str) -> float:
+    """Jaccard similarity on description keywords (before ' · ').
+    Returns 0-1. Used to weight rating signal per recommended school individually."""
+    import re
+    def keywords(t: str):
+        desc = t.split(" · ")[0].lower() if " · " in t else t.lower()
+        words = set(re.split(r"[\s&/\-,()]+", desc))
+        return {w for w in words if len(w) > 2}
+    kw_a = keywords(type_a)
+    kw_b = keywords(type_b)
+    if not kw_a or not kw_b:
+        return 0.0
+    return len(kw_a & kw_b) / len(kw_a | kw_b)
+
+
 def compute_score(stamp_count: int, consents_count: int, filieres_count: int) -> int:
-    # Legacy wrapper kept for backward compat — uses simplified formula.
+    # Legacy wrapper — passes minimal context, D3 will be 0
     breakdown = score_breakdown(
         stamp_count=stamp_count,
-        consents_count=consents_count,
+        consents={},
         filieres=[],
-        scan_exposant=False,
-        conf_count=0,
-        email_opened=False,
-        clicked_reco=False,
-        returned_site=False,
+        school_stamps=[],
+        classe=None,
     )
     return breakdown["total"]
 
 
-def _premium_count(filieres):
-    return sum(1 for f in (filieres or []) if f in PREMIUM_FILIERES)
-
-
 def score_breakdown(
     stamp_count: int,
-    consents_count: int,
+    consents: dict,
     filieres,
-    scan_exposant: bool = False,
-    conf_count: int = 0,
-    email_opened: bool = False,
-    clicked_reco: bool = False,
-    returned_site: bool = False,
+    school_stamps: list = None,
+    classe: str = None,
 ):
     """
-    Real lead scoring — D1+D2+D3+D4 from case study.
-    Hard rule: if no stamp at all (stamp_count == 0) -> total = 0.
-    Score capped at 98 (99-100 reserved for manual validation).
+    Lead scoring D1+D2+D3+D4 = 100pts max.
+    D1 (25): intentionnalité déclarée — filières + profil
+    D2 (40): comportement in-fair — nb stands visités (no diversity bonus)
+    D3 (20): pertinence — % stands cohérents avec filières déclarées
+    D4 (15): valeur commerciale — consentements
+    Hard rule: stamp_count == 0 → total = 0. Capped at 98.
     """
     fil = list(filieres or [])
+    cons = consents or {}
+    stamps = school_stamps or []
 
-    # D1 - Intentionnalité (25 pts max)
-    d1_filieres = min(len(fil), 3) * 5  # cap 3
-    d1_consents = min(consents_count, 4) * 2.5
-    d1_total = d1_filieres + d1_consents
+    # D1 - Intentionnalité déclarée (25 pts max)
+    n_fil = len(fil)
+    d1_filieres = {0: 0, 1: 8, 2: 16}.get(n_fil, 22)
+    d1_classe = 3 if classe and any(k in classe for k in ("Terminale", "Étudiant")) else 0
+    d1_total = min(25, d1_filieres + d1_classe)
 
-    # D2 - Comportement in-fair (40 pts max)
-    d2_stands = min(stamp_count, 8) * 3  # cap 8
-    d2_scan = 6 if scan_exposant else 0
-    d2_conf = 10 if conf_count > 0 else 0
-    d2_total = d2_stands + d2_scan + d2_conf
+    # D2 - Comportement in-fair (40 pts max) — no diversity bonus
+    d2_total = min(stamp_count, 10) * 4
 
-    # D3 - Engagement post-fair (25 pts max)
-    d3_email = 8 if email_opened else 0
-    d3_click = 10 if clicked_reco else 0
-    d3_return = 7 if returned_site else 0
-    d3_total = d3_email + d3_click + d3_return
-
-    # D4 - Valeur commerciale (10 pts max)
-    if consents_count >= 3:
-        d4_consents = 5
-    elif consents_count >= 1:
-        d4_consents = 2
+    # D3 - Pertinence des visites (20 pts max)
+    if stamps and fil:
+        user_halls = {FILIERE_TO_HALL[f] for f in fil if f in FILIERE_TO_HALL}
+        relevant = sum(1 for st in stamps if st.get("hall_id") in user_halls)
+        pct = relevant / len(stamps)
+        if pct >= 0.70:
+            d3_total = 20
+        elif pct >= 0.50:
+            d3_total = 14
+        elif pct >= 0.30:
+            d3_total = 8
+        else:
+            d3_total = 0
     else:
-        d4_consents = 0
-    d4_premium = min(_premium_count(fil), 2) * 2.5
-    d4_total = d4_consents + d4_premium
+        d3_total = 0
+
+    # D4 - Valeur commerciale (15 pts max)
+    d4_diplomeo = 6 if cons.get("d") else 0
+    d4_partenaires = 4 if cons.get("c") else 0
+    d4_letudiant = 3 if cons.get("l") else 0
+    d4_enquetes = 2 if cons.get("e") else 0
+    d4_total = d4_diplomeo + d4_partenaires + d4_letudiant + d4_enquetes
 
     raw = d1_total + d2_total + d3_total + d4_total
-    if stamp_count == 0:
-        capped = 0  # gating rule from case study
-    else:
-        capped = min(98, round(raw))
+    capped = 0 if stamp_count == 0 else min(98, round(raw))
 
     return {
         "total": int(capped),
@@ -526,8 +581,8 @@ def score_breakdown(
                 "value": round(d1_total, 1),
                 "max": 25,
                 "items": [
-                    {"label": f"{min(len(fil), 3)} filière(s) × 5", "pts": d1_filieres, "max": 15},
-                    {"label": f"{min(consents_count, 4)} consent. × 2,5", "pts": d1_consents, "max": 10},
+                    {"label": f"{n_fil} filière(s) → {d1_filieres}pts", "pts": d1_filieres, "max": 22},
+                    {"label": "Profil Terminale/Étudiant", "pts": d1_classe, "max": 3},
                 ],
             },
             {
@@ -538,32 +593,30 @@ def score_breakdown(
                 "max": 40,
                 "critical": True,
                 "items": [
-                    {"label": f"{min(stamp_count, 8)} stand(s) × 3", "pts": d2_stands, "max": 24},
-                    {"label": "Scan exposant (QR)", "pts": d2_scan, "max": 6},
-                    {"label": "Conférence suivie", "pts": d2_conf, "max": 10},
+                    {"label": f"{min(stamp_count, 10)} stand(s) × 4", "pts": d2_total, "max": 40},
                 ],
             },
             {
                 "key": "D3",
-                "label": "Engagement post-fair",
-                "weight": "25%",
+                "label": "Pertinence des visites",
+                "weight": "20%",
                 "value": round(d3_total, 1),
-                "max": 25,
+                "max": 20,
                 "items": [
-                    {"label": "Email post-fair ouvert", "pts": d3_email, "max": 8},
-                    {"label": "Clic sur recommandation", "pts": d3_click, "max": 10},
-                    {"label": "Retour sur letudiant.fr", "pts": d3_return, "max": 7},
+                    {"label": "% stands dans filières déclarées", "pts": d3_total, "max": 20},
                 ],
             },
             {
                 "key": "D4",
                 "label": "Valeur commerciale",
-                "weight": "10%",
+                "weight": "15%",
                 "value": round(d4_total, 1),
-                "max": 10,
+                "max": 15,
                 "items": [
-                    {"label": f"Multi-consents ({consents_count})", "pts": d4_consents, "max": 5},
-                    {"label": f"{_premium_count(fil)} filière(s) premium × 2,5", "pts": d4_premium, "max": 5},
+                    {"label": "Diplomeo", "pts": d4_diplomeo, "max": 6},
+                    {"label": "Partenaires", "pts": d4_partenaires, "max": 4},
+                    {"label": "L'Étudiant", "pts": d4_letudiant, "max": 3},
+                    {"label": "Enquêtes", "pts": d4_enquetes, "max": 2},
                 ],
             },
         ],
@@ -871,6 +924,17 @@ async def delete_stamp(stamp_id: str):
     return {"ok": True}
 
 
+@api_router.patch("/stamps/{stamp_id}/rating")
+async def rate_stamp(stamp_id: str, body: StampRating):
+    if not 1 <= body.rating <= 5:
+        raise HTTPException(400, "Rating must be between 1 and 5")
+    res = await db.stamps.update_one({"id": stamp_id}, {"$set": {"rating": body.rating}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Stamp not found")
+    stamp = await db.stamps.find_one({"id": stamp_id}, {"_id": 0})
+    return clean_doc(stamp)
+
+
 # ------- Recap -------
 @api_router.get("/students/{student_id}/recap")
 async def recap(student_id: str):
@@ -879,7 +943,6 @@ async def recap(student_id: str):
         raise HTTPException(404, "Student not found")
     stamps = await db.stamps.find({"student_id": student_id}, {"_id": 0}).to_list(500)
     consents = student.get("consents", {})
-    consents_count = sum(1 for v in consents.values() if v)
     filieres = student.get("filieres", [])
 
     # Split stamps: schools vs conferences (hall_id == "k")
@@ -888,13 +951,10 @@ async def recap(student_id: str):
 
     breakdown = score_breakdown(
         stamp_count=len(school_stamps),
-        consents_count=consents_count,
+        consents=consents,
         filieres=filieres,
-        scan_exposant=bool(student.get("scan_exposant")),
-        conf_count=len(conf_stamps),
-        email_opened=bool(student.get("email_opened")),
-        clicked_reco=bool(student.get("clicked_reco")),
-        returned_site=bool(student.get("returned_site")),
+        school_stamps=school_stamps,
+        classe=student.get("classe"),
     )
     score = breakdown["total"]
 
@@ -903,42 +963,43 @@ async def recap(student_id: str):
     schools_by_id = {sc["id"]: sc for sc in schools}
     visited_ids = {s["school_id"] for s in stamps}
 
+    # Score each visited school: filière match + star rating + consents → top 5
     recos = []
     if not student.get("is_anonymous"):
-        visited_halls = {s["hall_id"] for s in stamps if s.get("hall_id") != "k"}
-        for sc in schools:
-            if sc["id"] in visited_ids or sc["hall_id"] == "k":
+        for st in school_stamps:
+            sc = schools_by_id.get(st["school_id"])
+            if not sc:
                 continue
-            score_match = 60
-            why = ["Score de base 60"]
-            if sc["hall_id"] in visited_halls:
-                score_match += 20
-                why.append("+20 pôle déjà visité")
-            if "Ingénierie" in filieres and sc["hall_id"] == "i":
-                score_match += 14
-                why.append("+14 filière Ingénierie")
-            if "Commerce" in filieres and sc["hall_id"] == "c":
-                score_match += 14
-                why.append("+14 filière Commerce")
-            if "Sciences Po" in filieres and sc["hall_id"] == "s":
-                score_match += 14
-                why.append("+14 filière Sciences Po")
-            if "Numérique" in filieres and sc["hall_id"] == "i":
-                score_match += 8
-                why.append("+8 filière Numérique")
-            if "Arts" in filieres and sc["hall_id"] == "a":
-                score_match += 12
-                why.append("+12 filière Arts")
+            score_match = 0
+            why = []
+
+            # 0-50pts: filière-type keyword match
+            fil_pts = _filiere_type_score(filieres, sc["type"])
+            if fil_pts > 0:
+                score_match += fil_pts
+                why.append(f"+{fil_pts} correspondance filière")
+
+            # 0-40pts: student's own star rating
+            if st.get("rating"):
+                rating_pts = st["rating"] * 8
+                score_match += rating_pts
+                why.append(f"+{rating_pts} ta note ({st['rating']}⭐)")
+
+            # 0-10pts: consentements lead
+            if consents.get("d") or consents.get("c"):
+                score_match += 10
+                why.append("+10 lead qualifié")
+
             recos.append({
                 "name": sc["name"],
                 "type": sc["type"],
                 "school_id": sc["id"],
                 "m": min(98, score_match),
-                "t": score_match >= 85,
+                "t": score_match >= 70,
                 "why": why,
             })
         recos.sort(key=lambda r: -r["m"])
-        recos = recos[:3]
+        recos = recos[:5]
 
     # Next steps
     next_steps = []
@@ -1161,23 +1222,16 @@ async def leads(
         if not _passes_lead_filter(s, filiere, consent, min_stamps, stamp_count):
             continue
         consents = s.get("consents") or {}
-        consents_count = sum(1 for v in consents.values() if v)
-        # Stamps split: schools vs conferences
-        school_stamps = await db.stamps.count_documents(
-            {"student_id": s["id"], "hall_id": {"$ne": "k"}}
-        )
-        conf_stamps = await db.stamps.count_documents(
-            {"student_id": s["id"], "hall_id": "k"}
-        )
+        school_stamps_list = await db.stamps.find(
+            {"student_id": s["id"], "hall_id": {"$ne": "k"}},
+            {"hall_id": 1, "_id": 0},
+        ).to_list(500)
         breakdown = score_breakdown(
-            stamp_count=school_stamps,
-            consents_count=consents_count,
+            stamp_count=len(school_stamps_list),
+            consents=consents,
             filieres=s.get("filieres") or [],
-            scan_exposant=bool(s.get("scan_exposant")),
-            conf_count=conf_stamps,
-            email_opened=bool(s.get("email_opened")),
-            clicked_reco=bool(s.get("clicked_reco")),
-            returned_site=bool(s.get("returned_site")),
+            school_stamps=school_stamps_list,
+            classe=s.get("classe"),
         )
         score = breakdown["total"]
         rows.append({

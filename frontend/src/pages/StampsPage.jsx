@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import QRScanner from "@/components/QRScanner";
 import Toast from "@/components/Toast";
 import { BackIcon, ScanIcon } from "@/components/icons";
-import { getHalls, getSchools, createStamp, deleteStamp, getRecap, getLeaderboard } from "@/lib/api";
+import { getHalls, getSchools, createStamp, deleteStamp, rateStamp, getLeaderboard } from "@/lib/api";
 
 const FILIERE_TO_HALL = {
   "Ingénierie": "i",
@@ -55,11 +55,11 @@ export default function StampsPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [slamId, setSlamId] = useState(null);
   const [toast, setToast] = useState({ msg: "", type: "ok" });
-  const [score, setScore] = useState(0);
   const [scorePulse, setScorePulse] = useState(false);
   const [classRank, setClassRank] = useState(null);
   const [showRecapCelebration, setShowRecapCelebration] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [ratingModal, setRatingModal] = useState(null); // { stamp, school }
   const prevDoneCountRef = useRef(0);
   const activeHallRef = useRef(-1);
 
@@ -90,23 +90,11 @@ export default function StampsPage() {
   }, [student]);
 
   useEffect(() => {
-    if (!student || student.is_anonymous) return;
-    getRecap(student.id)
-      .then((r) => {
-        const newScore = r.score || 0;
-        setScore((prev) => {
-          if (newScore !== prev) {
-            setScorePulse(true);
-            setTimeout(() => setScorePulse(false), 800);
-          }
-          return newScore;
-        });
-      })
-      .catch(() => {});
-  }, [stamps, student]);
-
-  useEffect(() => {
     const count = stamps.length;
+    if (count !== prevDoneCountRef.current) {
+      setScorePulse(true);
+      setTimeout(() => setScorePulse(false), 800);
+    }
     if (prevDoneCountRef.current < 3 && count >= 3) {
       setTimeout(() => setShowRecapCelebration(true), 600);
     }
@@ -198,6 +186,7 @@ export default function StampsPage() {
           setSlamId(school.id);
           setTimeout(() => setSlamId(null), 900);
           setToast({ msg: `✓ Tampon ${school.name}`, type: "ok" });
+          setTimeout(() => setRatingModal({ stamp: res.stamp, school }), 750);
         }
       } catch (e) {
         setToast({ msg: "Erreur lors du tampon", type: "err" });
@@ -221,12 +210,23 @@ export default function StampsPage() {
           setToast({ msg: `Déjà tamponné : ${res.school?.name}`, type: "ok" });
         } else {
           setToast({ msg: `✓ Tampon ${res.school?.name}`, type: "ok" });
+          setTimeout(() => setRatingModal({ stamp: res.stamp, school: res.school }), 750);
         }
         const hIdx = halls.findIndex((h) => h.id === res.school?.hall_id);
         if (hIdx >= 0) setActiveHall(hIdx);
       }
     } catch (e) {
       setToast({ msg: "QR code inconnu", type: "err" });
+    }
+  };
+
+  const handleRate = async (stampId, rating) => {
+    setRatingModal(null);
+    try {
+      const updated = await rateStamp(stampId, rating);
+      setStamps(stamps.map((s) => (s.id === stampId ? updated : s)));
+    } catch (e) {
+      // rating is optional, silent fail
     }
   };
 
@@ -469,7 +469,16 @@ export default function StampsPage() {
                             <div className="sn">{s.name}</div>
                             <div className="st">{s.type}</div>
                           </div>
-                          {v && <div className="stm">{stamp.time_label}</div>}
+                          {v && (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+                              <div className="stm">{stamp.time_label}</div>
+                              {stamp.rating && (
+                                <div style={{ fontSize: 9, color: "#f59e0b", letterSpacing: 1 }}>
+                                  {"★".repeat(stamp.rating)}{"☆".repeat(5 - stamp.rating)}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <AnimatePresence>
                             {slamId === s.id ? (
                               <motion.div
@@ -539,6 +548,54 @@ export default function StampsPage() {
             </div>
           </div>
         )}
+
+        {/* Rating modal */}
+        <AnimatePresence>
+          {ratingModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 55, display: "flex", alignItems: "flex-end", justifyContent: "center", borderRadius: "inherit" }}
+              onClick={() => setRatingModal(null)}
+            >
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                style={{ background: "white", borderRadius: "20px 20px 0 0", padding: "24px 20px 36px", width: "100%", textAlign: "center" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ fontSize: 28, marginBottom: 6 }}>⭐</div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: "var(--ink)", marginBottom: 4 }}>
+                  {ratingModal.school?.name}
+                </div>
+                <div style={{ fontSize: 12, color: "#888", marginBottom: 20, lineHeight: 1.5 }}>
+                  Tu as aimé cette école ?<br />Ta note personalise tes recommandations.
+                </div>
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 20 }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => handleRate(ratingModal.stamp.id, star)}
+                      style={{ fontSize: 34, background: "none", border: "none", cursor: "pointer", padding: "4px 2px", lineHeight: 1 }}
+                      data-testid={`rate-star-${star}`}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setRatingModal(null)}
+                  style={{ background: "none", border: "none", color: "#aaa", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Passer
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Recap unlock celebration */}
         <AnimatePresence>
