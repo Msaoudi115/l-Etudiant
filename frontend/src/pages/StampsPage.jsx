@@ -284,9 +284,8 @@ export default function StampsPage() {
           </>
         ) : (
           <div className="stamps-bg">
-            {/* Score banner */}
-            <motion.div
-              animate={{ background: scorePulse ? "linear-gradient(90deg, #fff5f5, white)" : "white" }}
+            {/* Progress banner */}
+            <div
               style={{ padding: "10px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}
               data-testid="live-score-banner"
             >
@@ -297,18 +296,20 @@ export default function StampsPage() {
                   background: "var(--red)", color: "white", width: 36, height: 36,
                   borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                   fontWeight: 900, fontSize: 14, flexShrink: 0,
-                  boxShadow: scorePulse ? "0 0 0 6px rgba(227,0,11,0.18)" : "0 0 0 0 rgba(227,0,11,0)",
                 }}
               >
-                {score}
+                {doneCount}
               </motion.div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: "0.08em", textTransform: "uppercase" }}>Score live</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Tampons collectés
+                </div>
                 <div style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>
-                  {score >= 76 ? "🔥 Excellent parcours · récap disponible"
-                    : score >= 55 ? "♨️ Bon parcours · continue !"
-                    : score === 0 ? "Scanne ton 1er stand pour démarrer !"
-                    : "❄️ Encore quelques stands pour décoller"}
+                  {doneCount === 0
+                    ? "Scanne ton 1er stand pour démarrer !"
+                    : doneCount < 3
+                      ? `Plus que ${3 - doneCount} pour débloquer ton récap`
+                      : "🔥 Récap personnalisé disponible"}
                 </div>
               </div>
               {classRank && (
@@ -325,7 +326,7 @@ export default function StampsPage() {
                   #{classRank} 🏫
                 </motion.div>
               )}
-            </motion.div>
+            </div>
 
             {/* Next badge progress */}
             {stampsToNext && (

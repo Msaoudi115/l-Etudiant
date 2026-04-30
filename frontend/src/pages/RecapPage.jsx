@@ -93,17 +93,6 @@ export default function RecapPage() {
               <div className="rhn">{student.name || "—"}</div>
               <div className="rhd">Paris · 15 avril 2026</div>
             </div>
-            <motion.div
-              className="sr2"
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 170, damping: 14 }}
-            >
-              <div className="sn2" data-testid="recap-score">
-                {isAnon || done === 0 ? "—" : score}
-              </div>
-              <div className="sl2">Score</div>
-            </motion.div>
           </div>
           <div className="rhs">
             <div className="rstat">
@@ -265,19 +254,8 @@ export default function RecapPage() {
                   Filière : {student.filieres?.[0] || "non renseignée"}
                   <br />
                   Diplomeo : {student.consents?.d ? "Actif" : "Inactif"}
-                  <br />
-                  Score : <strong>{score} / 100</strong>
                 </div>
               </div>
-
-              {recap?.score_breakdown && (
-                <div>
-                  <div className="rsec">
-                    Décomposition du score
-                  </div>
-                  <ScoreBreakdown breakdown={recap.score_breakdown} />
-                </div>
-              )}
 
               {recap?.badges && (
                 <div>
@@ -352,22 +330,6 @@ export default function RecapPage() {
                       }}
                     >
                       🏆 Tu as tout débloqué — tu rentres au tirage Salon Étudiant Major
-                    </div>
-                  ) : score >= 80 ? (
-                    <div
-                      style={{
-                        background: "#fff5f5",
-                        border: "1px solid #fca5a5",
-                        color: "#b91c1c",
-                        padding: "10px 14px",
-                        borderRadius: 12,
-                        marginTop: 8,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        textAlign: "center",
-                      }}
-                    >
-                      🎁 Score ≥ 80 — tu participes au tirage au sort « Place Salon Étudiant Major »
                     </div>
                   ) : null}
                 </div>
@@ -461,15 +423,17 @@ export default function RecapPage() {
                         borderRadius: "50%",
                         border: "3px solid var(--red)",
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
                         color: "var(--red)",
                         fontWeight: 900,
-                        fontSize: 24,
+                        fontSize: 22,
                         background: "rgba(255,255,255,0.06)",
                       }}
                     >
-                      {score}
+                      {done}
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", opacity: 0.7 }}>stands</span>
                     </div>
                     <div style={{ flex: 1, lineHeight: 1.5, fontSize: 13, opacity: 0.85 }}>
                       {done} établissement{done > 1 ? "s" : ""} visité{done > 1 ? "s" : ""}
@@ -522,91 +486,3 @@ export default function RecapPage() {
   );
 }
 
-function ScoreBreakdown({ breakdown }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {breakdown.dimensions.map((d) => {
-        const pct = d.max > 0 ? (d.value / d.max) * 100 : 0;
-        return (
-          <div
-            key={d.key}
-            style={{
-              background: "white",
-              border: d.critical
-                ? "1.5px solid var(--red)"
-                : "1px solid #eee",
-              borderRadius: 12,
-              padding: "11px 13px",
-            }}
-            data-testid={`score-dim-${d.key}`}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span
-                style={{
-                  background: d.critical ? "var(--red)" : "var(--ink)",
-                  color: "white",
-                  padding: "2px 8px",
-                  fontSize: 10,
-                  fontWeight: 800,
-                  borderRadius: 99,
-                  letterSpacing: "0.05em",
-                }}
-              >
-                {d.key} · {d.weight}
-              </span>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", flex: 1 }}>
-                {d.label}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: d.critical ? "var(--red)" : "var(--ink)" }}>
-                {d.value}<span style={{ color: "#999", fontWeight: 600 }}> / {d.max}</span>
-              </div>
-            </div>
-            <div style={{ height: 4, background: "#f0f0f0", borderRadius: 99, overflow: "hidden", marginBottom: 8 }}>
-              <div
-                style={{
-                  width: `${pct}%`,
-                  height: "100%",
-                  background: d.critical ? "var(--red)" : "var(--ink)",
-                  transition: "width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
-                }}
-              />
-            </div>
-            {d.items.map((it, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: 11,
-                  color: it.pts > 0 ? "var(--ink)" : "#bbb",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "2px 0",
-                }}
-              >
-                <span>{it.label}</span>
-                <span style={{ fontWeight: 700, color: it.pts > 0 ? "var(--green)" : "#ccc" }}>
-                  {it.pts > 0 ? `+${it.pts}` : "0"} pts
-                </span>
-              </div>
-            ))}
-          </div>
-        );
-      })}
-      {breakdown.gating_zero && (
-        <div
-          style={{
-            background: "#fff5f5",
-            border: "1px solid #fca5a5",
-            borderRadius: 10,
-            padding: 10,
-            fontSize: 11.5,
-            color: "#b91c1c",
-            lineHeight: 1.45,
-          }}
-        >
-          ⚠️ <strong>Gating rule</strong> : 0 tampon enregistré → score forcé à 0. Au moins 1 stand
-          scanné est requis pour qu'un lead soit transmissible.
-        </div>
-      )}
-    </div>
-  );
-}
