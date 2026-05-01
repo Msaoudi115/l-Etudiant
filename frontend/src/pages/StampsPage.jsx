@@ -95,11 +95,15 @@ export default function StampsPage() {
       setScorePulse(true);
       setTimeout(() => setScorePulse(false), 800);
     }
-    if (prevDoneCountRef.current < 3 && count >= 3) {
-      setTimeout(() => setShowRecapCelebration(true), 600);
+    if (prevDoneCountRef.current < 3 && count >= 3 && student) {
+      const key = `recap_celebration_${student.id}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        setTimeout(() => setShowRecapCelebration(true), 600);
+      }
     }
     prevDoneCountRef.current = count;
-  }, [stamps]);
+  }, [stamps, student]);
 
   useEffect(() => {
     if (stamps.length > 0) setShowOnboarding(false);
