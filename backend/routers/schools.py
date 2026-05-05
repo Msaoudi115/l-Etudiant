@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from database import db
 from seed import HALLS_SEED
 
@@ -23,7 +23,6 @@ async def get_schools():
 
 @router.get("/schools/{school_id}")
 async def get_school(school_id: str):
-    from fastapi import HTTPException
     s = await db.schools.find_one({"id": school_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "School not found")
