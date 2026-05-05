@@ -7,7 +7,7 @@ export const DEMO_QR_BOOTHS = [
 ];
 
 export const buildDemoScanUrl = (origin, schoolId) =>
-  `${origin}/scan/${schoolId}?student=${DEMO_QR_STUDENT_ID}`;
+  `${origin}/scan/${schoolId}`;
 
 export const extractSchoolIdFromQr = (decoded) => {
   if (!decoded) return "";
