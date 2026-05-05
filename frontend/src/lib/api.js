@@ -1,6 +1,11 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+const LOCAL_BACKEND_URL = "http://localhost:8000";
+const isLocalBrowser =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const BACKEND_URL =
+  process.env.REACT_APP_BACKEND_URL || (isLocalBrowser ? LOCAL_BACKEND_URL : "");
 export const API = `${BACKEND_URL}/api`;
 
 export const api = axios.create({ baseURL: API, timeout: 15000 });
