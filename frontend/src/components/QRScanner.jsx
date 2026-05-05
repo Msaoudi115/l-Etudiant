@@ -11,6 +11,7 @@ import { getSchools } from "@/lib/api";
 export default function QRScanner({ open, onClose, onResult }) {
   const scannerRef = useRef(null);
   const onResultRef = useRef(onResult);
+  const stoppedRef = useRef(false);
   const [error, setError] = useState("");
   const [schools, setSchools] = useState([]);
 
@@ -27,24 +28,34 @@ export default function QRScanner({ open, onClose, onResult }) {
 
   useEffect(() => {
     if (!open) return;
+
     let scanner;
-    let stopped = false;
+
     const start = async () => {
+      stoppedRef.current = false;
+      setError("");
+
       try {
         scanner = new Html5Qrcode("qr-reader", /* verbose= */ false);
         scannerRef.current = scanner;
+
         const devices = await Html5Qrcode.getCameras();
         if (!devices || devices.length === 0) {
           setError("Aucune caméra détectée. Utilisez la liste ci-dessous.");
           return;
         }
-        const camId = devices[devices.length - 1].id; // prefer back camera on mobile
+
+        // Prefer back/rear/environment camera; fallback to last device
+        const preferredCamera =
+          devices.find((d) => /back|rear|environment/i.test(d.label || "")) ||
+          devices[devices.length - 1];
+
         await scanner.start(
-          camId,
+          preferredCamera.id,
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
-            if (stopped) return;
-            stopped = true;
+            if (stoppedRef.current) return;
+            stoppedRef.current = true;
             onResultRef.current?.(decodedText);
           },
           () => {}
@@ -55,9 +66,11 @@ export default function QRScanner({ open, onClose, onResult }) {
         );
       }
     };
+
     start();
+
     return () => {
-      stopped = true;
+      stoppedRef.current = true;
       (async () => {
         try {
           if (scannerRef.current) {
@@ -111,7 +124,7 @@ export default function QRScanner({ open, onClose, onResult }) {
                 <button
                   key={s.id}
                   className="scanner-demo-btn"
-                  onClick={() => onResultRef.current?.(s.qr_token)}
+                  onClick={() => onResultRef.current?.(s.qr_token || s.id)}
                   data-testid={`demo-stand-${s.id}`}
                 >
                   {s.name}
