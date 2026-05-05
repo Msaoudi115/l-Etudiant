@@ -139,6 +139,7 @@ export default function StampsPage() {
   }
   if (!student) return null;
 
+  const isAnon = student.is_anonymous;
   const totalSchools = schools.length;
   const doneCount = stamps.length;
   const pct = totalSchools > 0 ? Math.round((doneCount / totalSchools) * 100) : 0;
