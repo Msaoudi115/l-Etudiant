@@ -7,6 +7,7 @@ import QRScanner from "@/components/QRScanner";
 import Toast from "@/components/Toast";
 import { BackIcon, ScanIcon } from "@/components/icons";
 import { getHalls, getSchools, createStamp, deleteStamp, rateStamp, getLeaderboard } from "@/lib/api";
+import { extractSchoolIdFromQr } from "@/lib/demoQr";
 
 const FILIERE_TO_HALL = {
   "Ingénierie": "i",
@@ -200,12 +201,13 @@ export default function StampsPage() {
 
   const onScanResult = async (decoded) => {
     setScannerOpen(false);
+    const qrPayload = extractSchoolIdFromQr(decoded);
     if (isAnon) {
       setToast({ msg: "Profil anonyme — impossible", type: "err" });
       return;
     }
     try {
-      const res = await createStamp({ student_id: student.id, qr_token: decoded });
+      const res = await createStamp({ student_id: student.id, qr_token: qrPayload });
       if (res && res.stamp) {
         await loadStamps(student.id);
         setSlamId(res.school?.id);

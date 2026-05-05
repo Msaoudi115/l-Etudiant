@@ -132,6 +132,38 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
+              <div className="desk-card" style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div className="desk-h1" style={{ fontSize: 18, marginBottom: 4 }}>Demo QR booths</div>
+                    <div className="desk-sub">Albert, EPITA and Mines scan status for the board demo</div>
+                  </div>
+                  <div style={{ flex: 1 }} />
+                  <button
+                    className="sub-btn ghost"
+                    style={{ width: "auto", padding: "10px 16px" }}
+                    onClick={() => navigate("/demo-qr")}
+                  >
+                    Open QR board
+                  </button>
+                </div>
+                <div className="demo-status-grid">
+                  {(data.demo_booths || []).map((booth) => (
+                    <div className={`demo-status-card ${booth.visited ? "visited" : ""}`} key={booth.school_id}>
+                      <div className="demo-status-dot">{booth.visited ? "OK" : ""}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="demo-status-label">{booth.label}</div>
+                        <div className="demo-status-name">{booth.name}</div>
+                        <div className="demo-status-meta">
+                          {booth.visited ? `Visited at ${booth.time_label}` : "Waiting for scan"}
+                          {` - ${booth.total_visits} total visit${booth.total_visits > 1 ? "s" : ""}`}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div className="desk-card">
                   <div className="desk-h1" style={{ fontSize: 18, marginBottom: 4 }}>Tampons par pôle</div>

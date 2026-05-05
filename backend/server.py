@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 import secrets
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -168,11 +169,18 @@ FILIERE_KEYWORDS = {
 
 # Filières considered premium (D4 commercial value bonus)
 PREMIUM_FILIERES = {"Commerce", "Ingénierie", "Sciences Po", "Numérique"}
+DEMO_QR_STUDENT_ID = "demo-lucas"
+DEMO_QR_BOOTHS = [
+    {"school_id": "s2", "label": "Albert School booth"},
+    {"school_id": "s4", "label": "EPITA booth"},
+    {"school_id": "s100", "label": "Mines booth"},
+]
 
 SCHOOLS_SEED = [
     # Ingénierie & Numérique (26)
     {"id": "s1",  "hall_id": "i", "name": "89 — École Supérieure du Numérique", "type": "Informatique & Numérique · Paris", "initials": "89"},
     {"id": "s2",  "hall_id": "i", "name": "Albert School / Mines Paris - PSL", "type": "Ingénieurs & Management · Paris", "initials": "AS"},
+    {"id": "s100", "hall_id": "i", "name": "Mines Paris - PSL", "type": "Grande ecole d'ingenieurs - Paris", "initials": "MP"},
     {"id": "s3",  "hall_id": "i", "name": "CESI École d'Ingénieurs", "type": "École d'ingénieurs · Multi-sites", "initials": "CE"},
     {"id": "s4",  "hall_id": "i", "name": "Concours Advance (EPITA·ESME·IPSA)", "type": "Concours ingénieurs post-bac · Paris", "initials": "CA"},
     {"id": "s5",  "hall_id": "i", "name": "EEMI", "type": "Métiers du digital · Paris", "initials": "EE"},
@@ -331,7 +339,7 @@ async def seed_database():
         }
         await db.students.insert_one(lucas)
         # Lucas's stamps with new IDs
-        lucas_stamps = ["s1", "s2", "s6", "s10", "c2"]
+        lucas_stamps = ["s1", "s6", "s10", "c2"]
         for sid in lucas_stamps:
             sc = await db.schools.find_one({"id": sid}, {"_id": 0})
             if not sc:
@@ -470,6 +478,21 @@ def clean_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
         return doc
     doc.pop("_id", None)
     return doc
+
+
+def qr_payload_to_school_lookup(value: str) -> str:
+    payload = (value or "").strip()
+    if "/scan/" not in payload:
+        return payload
+    try:
+        parsed = urlparse(payload)
+        path = parsed.path or payload
+    except Exception:
+        path = payload
+    marker = "/scan/"
+    if marker not in path:
+        return payload
+    return path.split(marker, 1)[1].split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
 
 
 def _filiere_type_score(filieres: list, school_type: str) -> int:
@@ -892,10 +915,11 @@ async def create_stamp(body: StampCreate):
         raise HTTPException(404, "Student not found")
     if student.get("is_anonymous"):
         raise HTTPException(403, "Profil anonyme — pas de tampon possible")
-    school = await db.schools.find_one({"qr_token": body.qr_token}, {"_id": 0})
+    school_lookup = qr_payload_to_school_lookup(body.qr_token)
+    school = await db.schools.find_one({"qr_token": school_lookup}, {"_id": 0})
     if not school:
         # Allow direct school_id fallback
-        school = await db.schools.find_one({"id": body.qr_token}, {"_id": 0})
+        school = await db.schools.find_one({"id": school_lookup}, {"_id": 0})
     if not school:
         raise HTTPException(400, "QR inconnu")
 
@@ -913,6 +937,7 @@ async def create_stamp(body: StampCreate):
     )
     doc = stamp.model_dump()
     await db.stamps.insert_one(dict(doc))
+    await db.students.update_one({"id": body.student_id}, {"$set": {"scan_exposant": True}})
     return {"stamp": clean_doc(doc), "duplicate": False, "school": school}
 
 
@@ -1093,6 +1118,26 @@ async def analytics_overview():
     # Recent activity
     recent = await db.stamps.find({}, {"_id": 0}).sort("timestamp", -1).limit(10).to_list(10)
 
+    # Demo QR board status: per-booth status for the presentation QR codes.
+    demo_booths = []
+    for booth in DEMO_QR_BOOTHS:
+        school = await db.schools.find_one({"id": booth["school_id"]}, {"_id": 0})
+        demo_stamp = await db.stamps.find_one(
+            {"student_id": DEMO_QR_STUDENT_ID, "school_id": booth["school_id"]},
+            {"_id": 0},
+            sort=[("timestamp", -1)],
+        )
+        total_visits = await db.stamps.count_documents({"school_id": booth["school_id"]})
+        demo_booths.append({
+            "school_id": booth["school_id"],
+            "label": booth["label"],
+            "name": school["name"] if school else booth["school_id"],
+            "visited": demo_stamp is not None,
+            "time_label": demo_stamp.get("time_label") if demo_stamp else None,
+            "timestamp": demo_stamp.get("timestamp") if demo_stamp else None,
+            "total_visits": total_visits,
+        })
+
     return {
         "total_students": total_students,
         "total_stamps": total_stamps,
@@ -1103,6 +1148,7 @@ async def analytics_overview():
         "consents": consents,
         "filieres_dist": filieres_dist,
         "recent": recent,
+        "demo_booths": demo_booths,
     }
 
 

@@ -12,6 +12,8 @@ import AnalyticsPage from "@/pages/AnalyticsPage";
 import StandPage from "@/pages/StandPage";
 import AdminPage from "@/pages/AdminPage";
 import RgpdPage from "@/pages/RgpdPage";
+import DemoQrBoardPage from "@/pages/DemoQrBoardPage";
+import ScanVisitPage from "@/pages/ScanVisitPage";
 
 export default function App() {
   return (
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/rgpd" element={<RgpdPage />} />
           <Route path="/stand/:schoolId" element={<StandPage />} />
+          <Route path="/demo-qr" element={<DemoQrBoardPage />} />
+          <Route path="/scan/:schoolId" element={<ScanVisitPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

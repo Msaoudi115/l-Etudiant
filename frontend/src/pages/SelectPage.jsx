@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePassport } from "@/context/PassportContext";
-import { TeacherIcon, ChartIcon } from "@/components/icons";
+import { TeacherIcon, ChartIcon, ScanIcon } from "@/components/icons";
 import { getStudent, listStudents, deleteStudent } from "@/lib/api";
 
 const LOGO_URL = "https://birdeo.com/wp-content/uploads/2024/11/LOGo-letudiant.jpg";
@@ -147,6 +147,15 @@ export default function SelectPage() {
               <div className="eb-sub">
                 Stats temps réel · l'Étudiant
               </div>
+            </button>
+            <button
+              className="entry-btn"
+              onClick={() => navigate("/demo-qr")}
+              data-testid="entry-demo-qr"
+            >
+              <ScanIcon />
+              <div className="eb-title">QR codes demo</div>
+              <div className="eb-sub">Albert / EPITA / Mines</div>
             </button>
           </div>
 

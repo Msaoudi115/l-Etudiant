@@ -30,6 +30,8 @@ export default function StandPage() {
 
   if (!school) return <div className="stand-wrap"><div className="stand-sub">Chargement…</div></div>;
 
+  const scanUrl = `${window.location.origin}/scan/${school.id}`;
+
   return (
     <div className="stand-wrap">
       <img src={LOGO_URL} alt="l'Étudiant" style={{ height: 36, borderRadius: 6, marginBottom: 20 }} />
@@ -37,7 +39,7 @@ export default function StandPage() {
       <div className="stand-title" data-testid="stand-school-name">{school.name}</div>
       <div className="stand-sub">{school.type}</div>
       <div className="stand-qr-card">
-        <QRCodeSVG value={school.qr_token} size={240} level="H" fgColor="#1A237E" />
+        <QRCodeSVG value={scanUrl} size={240} level="H" fgColor="#1A237E" />
         <div style={{ textAlign: "center", maxWidth: 260 }}>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.1em", color: "#999", textTransform: "uppercase", marginBottom: 6 }}>
             Scanne pour valider
@@ -48,7 +50,7 @@ export default function StandPage() {
         </div>
       </div>
       <div className="stand-token" data-testid="stand-token">
-        {school.qr_token}
+        {scanUrl}
       </div>
       <button
         style={{ marginTop: 20, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "white", padding: "10px 18px", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}

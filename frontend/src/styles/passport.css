@@ -1923,6 +1923,66 @@ button {
   color: var(--navy);
 }
 
+.demo-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.demo-status-card {
+  border: 1.5px solid #eee;
+  border-radius: 12px;
+  padding: 13px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #fafafa;
+}
+.demo-status-card.visited {
+  background: #f0fdf4;
+  border-color: rgba(21, 128, 61, 0.35);
+}
+.demo-status-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  color: white;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.demo-status-card.visited .demo-status-dot {
+  background: var(--green);
+  border-color: var(--green);
+}
+.demo-status-label {
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.demo-status-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  margin-top: 3px;
+}
+.demo-status-meta {
+  color: #888;
+  font-size: 11px;
+  margin-top: 3px;
+}
+@media (max-width: 900px) {
+  .demo-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .code-pill {
   display: inline-flex;
   align-items: center;
@@ -2042,6 +2102,189 @@ button {
   padding: 8px 16px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 99px;
+}
+
+/* ============== DEMO QR BOARD ============== */
+.demoqr-shell {
+  min-height: 100vh;
+  background: #f7f5ef;
+  padding: 28px;
+  color: var(--ink);
+}
+.demoqr-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 auto 24px;
+  max-width: 1180px;
+}
+.demoqr-logo {
+  height: 38px;
+  border-radius: 6px;
+}
+.demoqr-title {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.demoqr-sub {
+  color: #777;
+  font-size: 14px;
+  margin-top: 4px;
+}
+.demoqr-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+.demoqr-actions .sub-btn {
+  width: auto;
+  margin: 0;
+  padding: 10px 16px;
+}
+.demoqr-grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.demoqr-card {
+  background: white;
+  border: 2px solid #eee;
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+.demoqr-card.visited {
+  border-color: var(--green);
+  box-shadow: 0 14px 34px rgba(21, 128, 61, 0.12);
+}
+.demoqr-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.demoqr-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--red);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.demoqr-name {
+  font-size: 20px;
+  font-weight: 900;
+  margin-top: 4px;
+  line-height: 1.15;
+}
+.demoqr-status {
+  margin-left: auto;
+  background: #f3f4f6;
+  color: #777;
+  border-radius: 99px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.demoqr-status.ok {
+  background: var(--green);
+  color: white;
+}
+.demoqr-code {
+  background: #f8f8f8;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  justify-content: center;
+}
+.demoqr-code svg {
+  background: white;
+}
+.demoqr-url {
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  color: #999;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.demoqr-time {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+}
+.demoqr-foot {
+  max-width: 320px;
+  margin: 22px auto 0;
+}
+@media (max-width: 900px) {
+  .demoqr-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .demoqr-actions {
+    margin-left: 0;
+  }
+  .demoqr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============== SCAN VISIT ============== */
+.scanvisit {
+  flex: 1;
+  padding: 34px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #f8f7f3;
+}
+.scanvisit-mark {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+.scanvisit-mark.ok {
+  background: var(--green);
+}
+.scanvisit-mark.error {
+  background: var(--red);
+}
+.scanvisit-mark.needs-profile {
+  background: var(--navy);
+}
+.scanvisit-title {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+.scanvisit-sub {
+  font-size: 14px;
+  color: #777;
+  line-height: 1.5;
+  max-width: 300px;
+}
+.scanvisit-actions {
+  width: 100%;
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* ============== generic helpers ============== */
