@@ -10,8 +10,13 @@ import { getSchools } from "@/lib/api";
  */
 export default function QRScanner({ open, onClose, onResult }) {
   const scannerRef = useRef(null);
+  const onResultRef = useRef(onResult);
   const [error, setError] = useState("");
   const [schools, setSchools] = useState([]);
+
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +45,7 @@ export default function QRScanner({ open, onClose, onResult }) {
           (decodedText) => {
             if (stopped) return;
             stopped = true;
-            onResult?.(decodedText);
+            onResultRef.current?.(decodedText);
           },
           () => {}
         );
@@ -66,7 +71,7 @@ export default function QRScanner({ open, onClose, onResult }) {
         scannerRef.current = null;
       })();
     };
-  }, [open, onResult]);
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -106,7 +111,7 @@ export default function QRScanner({ open, onClose, onResult }) {
                 <button
                   key={s.id}
                   className="scanner-demo-btn"
-                  onClick={() => onResult?.(s.qr_token)}
+                  onClick={() => onResultRef.current?.(s.qr_token)}
                   data-testid={`demo-stand-${s.id}`}
                 >
                   {s.name}

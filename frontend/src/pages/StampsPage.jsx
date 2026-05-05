@@ -139,7 +139,6 @@ export default function StampsPage() {
   }
   if (!student) return null;
 
-  const isAnon = student.is_anonymous;
   const totalSchools = schools.length;
   const doneCount = stamps.length;
   const pct = totalSchools > 0 ? Math.round((doneCount / totalSchools) * 100) : 0;
@@ -206,10 +205,15 @@ export default function StampsPage() {
       setToast({ msg: "Profil anonyme — impossible", type: "err" });
       return;
     }
+    setToast({ msg: "QR lu, validation du tampon...", type: "ok" });
     try {
       const res = await createStamp({ student_id: student.id, qr_token: qrPayload });
       if (res && res.stamp) {
-        await loadStamps(student.id);
+        setStamps((current) => [
+          ...current.filter((s) => s.school_id !== res.stamp.school_id),
+          res.stamp,
+        ]);
+        loadStamps(student.id).catch(() => {});
         setSlamId(res.school?.id);
         setTimeout(() => setSlamId(null), 900);
         if (res.duplicate) {
@@ -222,7 +226,7 @@ export default function StampsPage() {
         if (hIdx >= 0) setActiveHall(hIdx);
       }
     } catch (e) {
-      setToast({ msg: "QR code inconnu", type: "err" });
+      setToast({ msg: e?.response?.data?.detail || "QR code inconnu", type: "err" });
     }
   };
 
