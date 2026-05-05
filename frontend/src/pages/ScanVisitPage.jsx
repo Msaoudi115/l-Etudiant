@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createStamp, getSchool } from "@/lib/api";
 import { usePassport } from "@/context/PassportContext";
+import { extractSchoolIdFromQr } from "@/lib/demoQr";
 
 export default function ScanVisitPage() {
   const navigate = useNavigate();
@@ -18,6 +19,9 @@ export default function ScanVisitPage() {
     [params, studentId]
   );
 
+  // Normalize the schoolId from URL the same way StampsPage does with scanned QR content
+  const qrPayload = useMemo(() => extractSchoolIdFromQr(schoolId), [schoolId]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -31,13 +35,13 @@ export default function ScanVisitPage() {
       recordedRef.current = true;
 
       try {
-        const schoolRow = await getSchool(schoolId);
+        const schoolRow = await getSchool(qrPayload);
         if (cancelled) return;
         setSchool(schoolRow);
 
         const result = await createStamp({
           student_id: targetStudentId,
-          qr_token: schoolId,
+          qr_token: qrPayload,
         });
         if (cancelled) return;
 
@@ -64,7 +68,7 @@ export default function ScanVisitPage() {
     return () => {
       cancelled = true;
     };
-  }, [schoolId, targetStudentId, params, selectStudent, loadStamps]);
+  }, [qrPayload, targetStudentId, params, selectStudent, loadStamps]);
 
   const statusClass = status === "success" || status === "duplicate" ? "ok" : status;
 
